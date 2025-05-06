@@ -9,6 +9,7 @@ import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,22 +18,31 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-// import androidx.compose.material3.Button
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
-// import androidx.compose.runtime.setValue
-// import androidx.compose.runtime.mutableStateOf
-// import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import mylibrary.mindrove.SensorData
 import mylibrary.mindrove.ServerManager
+import com.found404.neurovibe.data.EEGDataProcessor
+import java.io.File
 
 class MainActivity : ComponentActivity() {
+    // -----
+    private val acquiredData = mutableListOf<SensorData>()
+    // -----
     private val serverManager = ServerManager { sensorData: SensorData ->
+        // -----
+        if (isAcquiring.value == true) {
+            acquiredData.add(sensorData)
+            // Log.d("AcquiredData", "Data acquired: $sensorData")
+        }
+        // -----
+
         val dataString = """
             Acceleration X: ${sensorData.accelerationX}
             Acceleration Y: ${sensorData.accelerationY}
@@ -55,9 +65,13 @@ class MainActivity : ComponentActivity() {
     }
     private val sensorDataText = MutableLiveData("No data yet")
     private val networkStatus = MutableLiveData("Checking network status...")
+    // -----
+    private val isAcquiring = MutableLiveData(false)
+    // -----
+
     private lateinit var handler: Handler
     private lateinit var runnable: Runnable
-    private var isServerManagerStarted = false
+    // private var isServerManagerStarted = false
     private var isWifiSettingsOpen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,11 +89,6 @@ class MainActivity : ComponentActivity() {
             } else {
                 networkStatus.value = "Connected to the network."
                 isWifiSettingsOpen = false
-
-                if (!isServerManagerStarted) {
-                    serverManager.start()
-                    isServerManagerStarted = true
-                }
             }
             handler.postDelayed(runnable, 3000)
         }
@@ -93,25 +102,50 @@ class MainActivity : ComponentActivity() {
             ) {
                 val networkStatusValue by networkStatus.observeAsState("Checking network status...")
                 val sensorDataTextValue by sensorDataText.observeAsState("No data yet")
-
-                // var isPaused by remember { mutableStateOf(false) }
+                // -----
+                val isAcquiringValue by isAcquiring.observeAsState(false)
+                // -----
 
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(text = "Network: $networkStatusValue")
-                    Text(text = "Sensor Data: $sensorDataTextValue")
                     Spacer(modifier = Modifier.height(16.dp))
 
-//                    Button(onClick = {
-//                        if (isPaused) {
-//                            serverManager.resume()
-//                        } else {
-//                            serverManager.pause()
-//                        }
-//                        isPaused = !isPaused
-//                    }) {
-//                        Text(text = if (isPaused) "Resume Server" else "Pause Server")
-//                    }
+                    // -----
+                    if (isAcquiringValue) {
+                        Text(text = "Sensor Data: $sensorDataTextValue")
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    Button(
+                        onClick = {
+                            if (!isAcquiringValue) {
+                                isAcquiring.value = true
+                                sensorDataText.value = "Acquiring EEG..."
+                                serverManager.start()
+
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    serverManager.stop()
+                                    isAcquiring.value = false
+                                    sensorDataText.postValue("EEG acquisition ended.")
+
+                                    // -----
+                                    val exporter = EEGDataProcessor()
+                                    val file = exporter.exportRawDataToCsv(acquiredData)
+                                    acquiredData.clear()
+
+                                    if (file != null) {
+                                        val featuresFile = File(file.parent, "features_${file.name}")
+                                        val generatedFeaturesFile = exporter.extractFeaturesToCsv(file, featuresFile)
+                                        Log.d("NeuroVibe", "Feature file saved to: ${generatedFeaturesFile.absolutePath}")
+                                    }
+                                    // -----
+                                }, 2000) // 2 secondi
+                            }
+                        }
+                    ) {
+                        Text(text = if (isAcquiringValue) "Acquiring..." else "Start EEG")
+                    }
                 }
+
             }
         }
     }
