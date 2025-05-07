@@ -10,4 +10,6 @@
     <string name="menu_home">Home</string>
     <string name="menu_gallery">Gallery</string>
     <string name="menu_slideshow">Slideshow</string>
+    <string name="usa_small_model">Usa Small Model</string>
+    <string name="usa_big_model">Usa Big Model</string>
 </resources>

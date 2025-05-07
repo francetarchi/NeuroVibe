@@ -1,52 +1,46 @@
 package com.found404.neurovibe
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.LocationManager
+//import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import androidx.lifecycle.MutableLiveData
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-// import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.ui.Modifier
-import androidx.compose.runtime.getValue
-// import androidx.compose.runtime.setValue
-// import androidx.compose.runtime.mutableStateOf
-// import androidx.compose.runtime.remember
-import androidx.compose.ui.unit.dp
-import mylibrary.mindrove.SensorData
-import mylibrary.mindrove.ServerManager
+import android.provider.Settings
 import android.util.Log
-import android.view.Menu
+//import android.view.Menu
+import android.view.View
+import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
-import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.navigation.NavigationView
-import androidx.navigation.findNavController
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.navigateUp
-import androidx.navigation.ui.setupActionBarWithNavController
-import androidx.navigation.ui.setupWithNavController
-import androidx.drawerlayout.widget.DrawerLayout
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.found404.neurovibe.databinding.ActivityMainBinding
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.found404.neurovibe.ml.TFLiteModelSmall
+import androidx.lifecycle.MutableLiveData
+//import androidx.lifecycle.Observer
+import com.found404.neurovibe.ml.TFLiteModel
+import mylibrary.mindrove.SensorData
+import mylibrary.mindrove.ServerManager
 
-private val LOCAL_PERMISSION_REQUEST_CODE = 100
+private const val LOCAL_PERMISSION_REQUEST_CODE = 100
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
+
+    private val acquiredData = mutableListOf<SensorData>()
+    private lateinit var handler: Handler
+    private lateinit var runnable: Runnable
+
     private val serverManager = ServerManager { sensorData: SensorData ->
+        if (isAcquiring.value == true) {
+            acquiredData.add(sensorData)
+            Log.d("Sensor Data", "Data acquired: $sensorData")
+        }
+
         val dataString = """
             Acceleration X: ${sensorData.accelerationX}
             Acceleration Y: ${sensorData.accelerationY}
@@ -67,117 +61,93 @@ class MainActivity : ComponentActivity() {
 
         sensorDataText.postValue(dataString)
     }
+
     private val sensorDataText = MutableLiveData("No data yet")
     private val networkStatus = MutableLiveData("Checking network status...")
-    private lateinit var handler: Handler
-    private lateinit var runnable: Runnable
-    private var isServerManagerStarted = false
+    private val isAcquiring = MutableLiveData(false)
+    //private var isServerManagerStarted = false
     private var isWifiSettingsOpen = false
+    private var selectedModelFile: String? = null
+    private var model: TFLiteModel? = null
 
+    private lateinit var textNetworkStatus: TextView
+    private lateinit var textSensorData: TextView
+    private lateinit var buttonStartEEG: Button
+    private lateinit var buttonUseSmallModel: Button
+    private lateinit var buttonUseBigModel: Button
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        menuInflater.inflate(R.menu.main, menu)
-        return true
-    }
-
-    override fun onSupportNavigateUp(): Boolean {
-        val navController = findNavController(R.id.nav_host_fragment_content_main)
-        return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
-    }
-
-    private fun checkAndRequestPermissions(){
-        val permissions = arrayOf(
-            android.Manifest.permission.ACCESS_FINE_LOCATION,
-            android.Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-
-        val missingPermissions = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if(missingPermissions.isNotEmpty()){
-            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), LOCAL_PERMISSION_REQUEST_CODE)
-        } else {
-            // All permissions are granted, proceed with your logic
-
-            val model = TFLiteModelSmall(this)
-            val input = model.loadCsvInput(this)
-
-            input?.let {
-                val prediction = model.predict(it)
-                val predictedClass = prediction.indices.maxByOrNull { prediction[it] } ?: -1
-                Log.i("Predizione", "Classe predetta: $predictedClass")
-            }
-        }
-    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        textNetworkStatus = findViewById(R.id.textNetworkStatus)
+        textSensorData = findViewById(R.id.textSensorData)
+        buttonStartEEG = findViewById(R.id.buttonStartEEG)
+        buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
+        buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
 
         handler = Handler(Looper.getMainLooper())
-        runnable = Runnable {
-            val isNetworkAvailable = isNetworkAvailable()
-            if (!isNetworkAvailable) {
-                networkStatus.value = "No network connection. Please enable Wi-Fi."
-                if (!isWifiSettingsOpen) {
-                    openWifiSettings()
-                    isWifiSettingsOpen = true
+        runnable = object : Runnable {
+            override fun run() {
+                val isNetworkAvailable = isNetworkAvailable()
+                if (!isNetworkAvailable) {
+                    networkStatus.value = "No network connection. Please enable Wi-Fi."
+                    if (!isWifiSettingsOpen) {
+                        openWifiSettings()
+                        isWifiSettingsOpen = true
+                    }
+                } else {
+                    networkStatus.value = "Connected to the network."
+                    isWifiSettingsOpen = false
                 }
-            } else {
-                networkStatus.value = "Connected to the network."
-                isWifiSettingsOpen = false
-
-                if (!isServerManagerStarted) {
-                    serverManager.start()
-                    isServerManagerStarted = true
-                }
+                handler.postDelayed(this, 3000)
             }
-            handler.postDelayed(runnable, 3000)
         }
-
         handler.post(runnable)
 
-        setContent {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                val networkStatusValue by networkStatus.observeAsState("Checking network status...")
-                val sensorDataTextValue by sensorDataText.observeAsState("No data yet")
-
-                // var isPaused by remember { mutableStateOf(false) }
-
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "Network: $networkStatusValue")
-                    Text(text = "Sensor Data: $sensorDataTextValue")
-                    Spacer(modifier = Modifier.height(16.dp))
-
-//                    Button(onClick = {
-//                        if (isPaused) {
-//                            serverManager.resume()
-//                        } else {
-//                            serverManager.pause()
-//                        }
-//                        isPaused = !isPaused
-//                    }) {
-//                        Text(text = if (isPaused) "Resume Server" else "Pause Server")
-//                    }
-                }
+        // Observers
+        sensorDataText.observe(this){
+            if (isAcquiring.value == true) {
+                textSensorData.visibility = View.VISIBLE
+                textSensorData.text = it
             }
         }
-        val drawerLayout: DrawerLayout = binding.drawerLayout
-        val navView: NavigationView = binding.navView
-        val navController = findNavController(R.id.nav_host_fragment_content_main)
-        // Passing each menu ID as a set of Ids because each
-        // menu should be considered as top level destinations.
-        appBarConfiguration = AppBarConfiguration(
-            setOf(
-                R.id.nav_home, R.id.nav_gallery, R.id.nav_slideshow
-            ), drawerLayout
-        )
-        setupActionBarWithNavController(navController, appBarConfiguration)
-        navView.setupWithNavController(navController)
-        checkAndRequestPermissions()
+
+        networkStatus.observe(this){
+            textNetworkStatus.text = it
+        }
+
+        isAcquiring.observe(this){ acquiring ->
+            if (!acquiring) {
+                textSensorData.visibility = View.GONE
+            }
+        }
+
+        // Button listeners
+        buttonStartEEG.setOnClickListener {
+            if (isAcquiring.value != true) {
+                isAcquiring.value = true
+                textSensorData.visibility = View.VISIBLE
+                textSensorData.text = "Acquiring EEG..."
+                serverManager.start()
+
+                Handler(Looper.getMainLooper()).postDelayed({
+                    serverManager.stop()
+                    isAcquiring.value = false
+                    textSensorData.text = "EEG acquisition ended."
+                }, 2000)
+            }
+        }
+
+        buttonUseSmallModel.setOnClickListener {
+            selectedModelFile = "Smallmodel100Neurons.tflite"
+            checkAndRequestPermissions()
+        }
+
+        buttonUseBigModel.setOnClickListener {
+            selectedModelFile = "Bigmodel1000Neurons.tflite"
+            checkAndRequestPermissions()
+        }
     }
 
     override fun onDestroy() {
@@ -185,43 +155,27 @@ class MainActivity : ComponentActivity() {
         handler.removeCallbacks(runnable)
         serverManager.stop()
     }
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if(requestCode == LOCAL_PERMISSION_REQUEST_CODE){
-            if(grantResults.all{it == PackageManager.PERMISSION_GRANTED}) {
 
-                val model = TFLiteModelSmall(this)
-                val input = model.loadCsvInput(this)
+    override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
+        menuInflater.inflate(R.menu.main, menu)
+        return true
+    }
 
-                input?.let {
-                    val prediction = model.predict(it)
-                    val predictedClass = prediction.indices.maxByOrNull { prediction[it] } ?: -1
-                    Log.i("Predizione", "Classe predetta: $predictedClass")
-                }
-            } else {
-                Toast.makeText(this, "Permessi di localizzazione richiesti per connettersi al casco", Toast.LENGTH_LONG).show()
-            }
+    private fun checkAndRequestPermissions() {
+        val permissions = arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+
+        val missingPermissions = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
-    }
 
-    private fun isLocationEnabled(): Boolean{
-        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-    }
-}
-    private fun isNetworkAvailable(): Boolean {
-        val connectivityManager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = connectivityManager.activeNetwork
-        val capabilities = connectivityManager.getNetworkCapabilities(network)
-        return capabilities != null &&
-                (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
+        if (missingPermissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), LOCAL_PERMISSION_REQUEST_CODE)
+        } else {
+            initializeModel()
+        }
     }
 
     private val wifiSettingsLauncher =
@@ -232,5 +186,36 @@ class MainActivity : ComponentActivity() {
     private fun openWifiSettings() {
         val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
         wifiSettingsLauncher.launch(intent)
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        val connectivityManager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+        return capabilities != null &&
+                (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
+    }
+
+    private fun initializeModel() {
+        selectedModelFile?.let { modelFile ->
+            try {
+                model = TFLiteModel(this, modelFile)
+                val inputData = model?.loadCsvInput(this, "prova_da_cambiare.csv")
+                if (inputData != null) {
+                    val output = model?.predict(inputData)
+                    output?.let {
+                        Log.d("PREDIZIONE", "Risultato: ${it.joinToString()}")
+                        Toast.makeText(this, "Predizione: ${it.joinToString()}", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(this, "Errore nel caricamento dei dati di input.", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(this, "Errore nell'inizializzazione del modello.", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 }

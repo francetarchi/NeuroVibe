@@ -3,16 +3,18 @@ package com.found404.neurovibe.ml
 import android.content.Context
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
 
 
-class TFLiteModelSmall(context: Context) {
+class TFLiteModel(context: Context, modelFileName : String) {
     private val interpreter: Interpreter
+    private var linesToSkip = 1
 
     init {
-        val assetFileDescriptor = context.assets.openFd("Smallmodel100Neurons.tflite")
+        val assetFileDescriptor = context.assets.openFd(modelFileName)
         val fileInputStream = FileInputStream(assetFileDescriptor.fileDescriptor)
         val fileChannel = fileInputStream.channel
         val startOffset = assetFileDescriptor.startOffset
@@ -35,11 +37,12 @@ class TFLiteModelSmall(context: Context) {
         return output[0]
     }
 
-    fun loadCsvInput(context: Context, fileName: String = "input.csv"): FloatArray? {
+    fun loadCsvInput(context: Context, file: String): FloatArray? {
         try {
-            val inputStream = context.assets.open(fileName)
+            val inputStream = context.assets.open(file)
             val reader = inputStream.bufferedReader()
-            val firstLine = reader.readLine()
+            repeat(linesToSkip) {reader.readLine()}
+            linesToSkip++
             val dataLine = reader.readLine() ?: return null
             val values = dataLine.split(",").map { it.trim().toFloat() }
             return values.toFloatArray()
