@@ -22,10 +22,12 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
+import com.found404.neurovibe.data.EEGDataProcessor
 //import androidx.lifecycle.Observer
 import com.found404.neurovibe.ml.TFLiteModel
 import mylibrary.mindrove.SensorData
 import mylibrary.mindrove.ServerManager
+import java.io.File
 
 private const val LOCAL_PERMISSION_REQUEST_CODE = 100
 
@@ -84,7 +86,9 @@ class MainActivity : AppCompatActivity() {
         textSensorData = findViewById(R.id.textSensorData)
         buttonStartEEG = findViewById(R.id.buttonStartEEG)
         buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
+        buttonUseSmallModel.visibility = View.GONE
         buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
+        buttonUseBigModel.visibility = View.GONE
 
         handler = Handler(Looper.getMainLooper())
         runnable = object : Runnable {
@@ -135,18 +139,33 @@ class MainActivity : AppCompatActivity() {
                     serverManager.stop()
                     isAcquiring.value = false
                     textSensorData.text = "EEG acquisition ended."
+
+                    // Mi creo il file csv e lo salvo nella cartella Download
+                    val exporter = EEGDataProcessor()
+                    val file = exporter.exportRawDataToCsv(acquiredData)
+                    acquiredData.clear()
+                    if(file != null){
+                        val featuresFile = File(file.parent, "features_${file.name}")
+                        val generatedFeaturesFile = exporter.extractFeaturesToCsv(file, featuresFile)
+                        Log.d("NeuroVibe", "Feature file saved to: ${generatedFeaturesFile.absolutePath}")
+
+
+                        // Si può estrarre i dati una volta sola al momento
+                        buttonStartEEG.visibility = View.GONE
+                        buttonUseSmallModel.visibility = View.VISIBLE
+                        buttonUseSmallModel.setOnClickListener {
+                            selectedModelFile = "Smallmodel100Neurons.tflite"
+                            initializeModel(featuresFile)
+                        }
+
+                        buttonUseBigModel.visibility = View.VISIBLE
+                        buttonUseBigModel.setOnClickListener {
+                            selectedModelFile = "Bigmodel1000Neurons.tflite"
+                            initializeModel(featuresFile)
+                        }
+                    }
                 }, 2000)
             }
-        }
-
-        buttonUseSmallModel.setOnClickListener {
-            selectedModelFile = "Smallmodel100Neurons.tflite"
-            checkAndRequestPermissions()
-        }
-
-        buttonUseBigModel.setOnClickListener {
-            selectedModelFile = "Bigmodel1000Neurons.tflite"
-            checkAndRequestPermissions()
         }
     }
 
@@ -174,7 +193,7 @@ class MainActivity : AppCompatActivity() {
         if (missingPermissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), LOCAL_PERMISSION_REQUEST_CODE)
         } else {
-            initializeModel()
+            //initializeModel()
         }
     }
 
@@ -198,11 +217,11 @@ class MainActivity : AppCompatActivity() {
                         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
     }
 
-    private fun initializeModel() {
+    private fun initializeModel(fileName: File) {
         selectedModelFile?.let { modelFile ->
             try {
                 model = TFLiteModel(this, modelFile)
-                val inputData = model?.loadCsvInput(this, "prova_da_cambiare.csv")
+                val inputData = model?.loadCsvInput(this, fileName)
                 if (inputData != null) {
                     val output = model?.predict(inputData)
                     output?.let {

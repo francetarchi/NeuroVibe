@@ -61,6 +61,9 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+
+    implementation(libs.commons.math3)
     // ----------
 
     implementation(libs.androidx.core.ktx)
