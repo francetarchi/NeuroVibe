@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -80,16 +81,22 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        //Carico il file di configurazione del layout
         setContentView(R.layout.activity_main)
 
+        //Inizializzazione degli elementi base
         textNetworkStatus = findViewById(R.id.textNetworkStatus)
         textSensorData = findViewById(R.id.textSensorData)
         buttonStartEEG = findViewById(R.id.buttonStartEEG)
         buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
-        buttonUseSmallModel.visibility = View.GONE
         buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
+
+
+        buttonStartEEG.visibility = View.GONE
+        buttonUseSmallModel.visibility = View.GONE
         buttonUseBigModel.visibility = View.GONE
 
+        // Handler per la connessione alla rete
         handler = Handler(Looper.getMainLooper())
         runnable = object : Runnable {
             override fun run() {
@@ -127,46 +134,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Button listeners
-        buttonStartEEG.setOnClickListener {
-            if (isAcquiring.value != true) {
-                isAcquiring.value = true
-                textSensorData.visibility = View.VISIBLE
-                textSensorData.text = "Acquiring EEG..."
-                serverManager.start()
-
-                Handler(Looper.getMainLooper()).postDelayed({
-                    serverManager.stop()
-                    isAcquiring.value = false
-                    textSensorData.text = "EEG acquisition ended."
-
-                    // Mi creo il file csv e lo salvo nella cartella Download
-                    val exporter = EEGDataProcessor()
-                    val file = exporter.exportRawDataToCsv(acquiredData)
-                    acquiredData.clear()
-                    if(file != null){
-                        val featuresFile = File(file.parent, "features_${file.name}")
-                        val generatedFeaturesFile = exporter.extractFeaturesToCsv(file, featuresFile)
-                        Log.d("NeuroVibe", "Feature file saved to: ${generatedFeaturesFile.absolutePath}")
-
-
-                        // Si può estrarre i dati una volta sola al momento
-                        buttonStartEEG.visibility = View.GONE
-                        buttonUseSmallModel.visibility = View.VISIBLE
-                        buttonUseSmallModel.setOnClickListener {
-                            selectedModelFile = "Smallmodel100Neurons.tflite"
-                            initializeModel(featuresFile)
-                        }
-
-                        buttonUseBigModel.visibility = View.VISIBLE
-                        buttonUseBigModel.setOnClickListener {
-                            selectedModelFile = "Bigmodel1000Neurons.tflite"
-                            initializeModel(featuresFile)
-                        }
-                    }
-                }, 2000)
-            }
-        }
+        checkAndRequestPermissions()
     }
 
     override fun onDestroy() {
@@ -193,7 +161,19 @@ class MainActivity : AppCompatActivity() {
         if (missingPermissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), LOCAL_PERMISSION_REQUEST_CODE)
         } else {
-            //initializeModel()
+            startServerManager()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray){
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if(requestCode == LOCAL_PERMISSION_REQUEST_CODE){
+            if(grantResults.all { it == PackageManager.PERMISSION_GRANTED }){
+                startServerManager()
+            } else {
+                Toast.makeText(this, "I permessi sono necessari per avviare l'app.", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -217,24 +197,109 @@ class MainActivity : AppCompatActivity() {
                         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
     }
 
-    private fun initializeModel(fileName: File) {
+    private fun startServerManager() {
+
+        val totalSegments = 5
+        val segmentDurationMs = 2000L
+        var currentSegment = 0
+        val segmentHandler = Handler(Looper.getMainLooper())
+        val exporter = EEGDataProcessor()
+
+        acquiredData.clear()
+
+        buttonStartEEG.setOnClickListener {
+            if (isAcquiring.value != true) {
+                isAcquiring.value = true
+                textSensorData.visibility = View.VISIBLE
+                textSensorData.text = getString(R.string.inizio_acquisizione, totalSegments)
+                serverManager.start()
+
+                val segmentRunnable = object : Runnable{
+                    override fun run(){
+                        currentSegment++
+                        textSensorData.text = getString(R.string.acquisizione, currentSegment, totalSegments)
+
+                        val currentData = ArrayList(acquiredData)
+                        acquiredData.clear()
+
+                        //esporta i dati in un file CSV
+                        val rawfile = exporter.exportRawDataToCsv(currentData, currentSegment)
+                        if(rawfile != null){
+                            val featuresFile = File(rawfile.parent, "features_image_1.csv")
+                            exporter.extractFeaturesToCsv(rawfile, featuresFile)
+                        }
+
+                        if(currentSegment < totalSegments){
+                            segmentHandler.postDelayed(this, segmentDurationMs)
+                        } else {
+                            serverManager.stop()
+                            isAcquiring.value = false
+                            textSensorData.text = getString(R.string.fine_acquisizione)
+
+                            buttonStartEEG.visibility = View.GONE
+                            buttonUseSmallModel.visibility = View.VISIBLE
+                            buttonUseBigModel.visibility = View.VISIBLE
+
+                            val featuresFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "features_image_1.csv")
+
+                            buttonUseSmallModel.setOnClickListener {
+                                selectedModelFile = "Smallmodel100Neurons.tflite"
+                                val predizioni = initializeModel(featuresFile)
+                                val predictedClass = finalPrediction(predizioni)
+                                Log.i("Predizione", "Predicted class: $predictedClass")
+                            }
+
+                            buttonUseBigModel.setOnClickListener {
+                                selectedModelFile = "Bigmodel1000Neurons.tflite"
+                                val predizioni = initializeModel(featuresFile)
+                                val predictedClass = finalPrediction(predizioni)
+                                Log.i("Predizione", "Predicted class: $predictedClass")
+                            }
+                        }
+                    }
+                }
+
+                segmentHandler.postDelayed(segmentRunnable, segmentDurationMs)
+            }
+        }
+            // Rendi visibili i pulsanti necessari
+            buttonStartEEG.visibility = View.VISIBLE
+        }
+    private fun initializeModel(fileName: File): List<Int> {
+        val predictedClasses = mutableListOf<Int>()
+
         selectedModelFile?.let { modelFile ->
             try {
                 model = TFLiteModel(this, modelFile)
-                val inputData = model?.loadCsvInput(this, fileName)
-                if (inputData != null) {
-                    val output = model?.predict(inputData)
-                    output?.let {
-                        Log.d("PREDIZIONE", "Risultato: ${it.joinToString()}")
-                        Toast.makeText(this, "Predizione: ${it.joinToString()}", Toast.LENGTH_LONG).show()
+                for(i in 1..5){
+                    val inputData = model?.loadCsvInput(this, fileName, linesToSkip = i)
+                    if (inputData != null) {
+                        val output = model?.predict(inputData)
+                        output?.let {
+                            val predictedClass = it.indices.maxByOrNull { idx -> it[idx] } ?: -1
+                            predictedClasses.add(predictedClass)
+                            Log.d("PREDIZIONE", "Riga $i → Classe $predictedClass → Output: ${it.joinToString()}")
+                            Toast.makeText(this, "Riga $i → Classe $predictedClass", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Log.e("PREDIZIONE", "Errore nel caricamento dei dati di input alla riga $i")
+                        Toast.makeText(this, "Errore alla riga $i", Toast.LENGTH_SHORT).show()
                     }
-                } else {
-                    Toast.makeText(this, "Errore nel caricamento dei dati di input.", Toast.LENGTH_LONG).show()
                 }
+
             } catch (e: Exception) {
                 e.printStackTrace()
                 Toast.makeText(this, "Errore nell'inizializzazione del modello.", Toast.LENGTH_LONG).show()
             }
         }
+        return predictedClasses
+    }
+
+    private fun finalPrediction(predictedClasses: List<Int>): Int{
+        return predictedClasses
+            .groupingBy { it }
+            .eachCount()
+            .maxByOrNull { it.value }
+            ?.key ?: -1
     }
 }
