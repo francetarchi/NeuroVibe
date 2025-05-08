@@ -1,47 +1,43 @@
 package com.found404.neurovibe
 
+import android.Manifest
 import android.content.Intent
-import android.provider.Settings
-import androidx.activity.result.contract.ActivityResultContracts
-import android.content.Context
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
+import android.view.View
+import android.widget.Button
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.ui.Modifier
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.unit.dp
+import com.found404.neurovibe.data.EEGDataProcessor
+import com.found404.neurovibe.ml.TFLiteModel
 import mylibrary.mindrove.SensorData
 import mylibrary.mindrove.ServerManager
-import com.found404.neurovibe.data.EEGDataProcessor
 import java.io.File
 
-class MainActivity : ComponentActivity() {
-    // -----
+private val LOCAL_PERMISSION_REQUEST_CODE = 100
+
+class MainActivity : AppCompatActivity() {
     private val acquiredData = mutableListOf<SensorData>()
-    // -----
+    private lateinit var handler: Handler
+    private lateinit var runnable: Runnable
+
     private val serverManager = ServerManager { sensorData: SensorData ->
-        // -----
+
         if (isAcquiring.value == true) {
             acquiredData.add(sensorData)
-            // Log.d("AcquiredData", "Data acquired: $sensorData")
+            Log.d("AcquiredData", "Data acquired: $sensorData")
         }
-        // -----
 
         val dataString = """
             Acceleration X: ${sensorData.accelerationX}
@@ -65,87 +61,107 @@ class MainActivity : ComponentActivity() {
     }
     private val sensorDataText = MutableLiveData("No data yet")
     private val networkStatus = MutableLiveData("Checking network status...")
-    // -----
     private val isAcquiring = MutableLiveData(false)
-    // -----
-
-    private lateinit var handler: Handler
-    private lateinit var runnable: Runnable
-    // private var isServerManagerStarted = false
     private var isWifiSettingsOpen = false
+    private var selectedModelFile: String? = null
+    private var model: TFLiteModel? = null
+
+    private lateinit var textNetworkStatus: TextView
+    private lateinit var textSensorData: TextView
+    private lateinit var buttonStartEEG: Button
+    private lateinit var buttonUseSmallModel: Button
+    private lateinit var buttonUseBigModel: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        textNetworkStatus = findViewById(R.id.textNetworkStatus)
+        textSensorData = findViewById(R.id.textSensorData)
+        buttonStartEEG = findViewById(R.id.buttonStartEEG)
+        buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
+        buttonUseSmallModel.visibility = View.GONE
+        buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
+        buttonUseBigModel.visibility = View.GONE
 
         handler = Handler(Looper.getMainLooper())
-        runnable = Runnable {
-            val isNetworkAvailable = isNetworkAvailable()
-            if (!isNetworkAvailable) {
-                networkStatus.value = "No network connection. Please enable Wi-Fi."
-                if (!isWifiSettingsOpen) {
-                    openWifiSettings()
-                    isWifiSettingsOpen = true
+        runnable = object : Runnable {
+            override fun run() {
+                val isNetworkAvailable = isNetworkAvailable()
+                if (!isNetworkAvailable) {
+                    networkStatus.value = "No network connection. Please enable Wi-Fi."
+                    if (!isWifiSettingsOpen) {
+                        openWifiSettings()
+                        isWifiSettingsOpen = true
+                    }
+                } else {
+                    networkStatus.value = "Connected to the network."
+                    isWifiSettingsOpen = false
                 }
-            } else {
-                networkStatus.value = "Connected to the network."
-                isWifiSettingsOpen = false
+                handler.postDelayed(this, 3000)
             }
-            handler.postDelayed(runnable, 3000)
         }
-
         handler.post(runnable)
 
-        setContent {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                val networkStatusValue by networkStatus.observeAsState("Checking network status...")
-                val sensorDataTextValue by sensorDataText.observeAsState("No data yet")
-                // -----
-                val isAcquiringValue by isAcquiring.observeAsState(false)
-                // -----
+        // Observers
+        sensorDataText.observe(this){
+            if (isAcquiring.value == true) {
+                textSensorData.visibility = View.VISIBLE
+                textSensorData.text = it
+            }
+        }
 
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "Network: $networkStatusValue")
-                    Spacer(modifier = Modifier.height(16.dp))
+        networkStatus.observe(this){
+            textNetworkStatus.text = it
+        }
 
-                    // -----
-                    if (isAcquiringValue) {
-                        Text(text = "Sensor Data: $sensorDataTextValue")
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    Button(
-                        onClick = {
-                            if (!isAcquiringValue) {
-                                isAcquiring.value = true
-                                sensorDataText.value = "Acquiring EEG..."
-                                serverManager.start()
+        isAcquiring.observe(this){ acquiring ->
+            if (!acquiring) {
+                textSensorData.visibility = View.GONE
+            }
+        }
 
-                                Handler(Looper.getMainLooper()).postDelayed({
-                                    serverManager.stop()
-                                    isAcquiring.value = false
-                                    sensorDataText.postValue("EEG acquisition ended.")
+        // Button listeners
+        buttonStartEEG.setOnClickListener {
+            // -----
+            checkAndRequestPermissions()
+            // -----
+            if (isAcquiring.value != true) {
+                isAcquiring.value = true
+                textSensorData.visibility = View.VISIBLE
+                textSensorData.text = "Acquiring EEG..."
+                serverManager.start()
 
-                                    // -----
-                                    val exporter = EEGDataProcessor()
-                                    val file = exporter.exportRawDataToCsv(acquiredData)
-                                    acquiredData.clear()
+                Handler(Looper.getMainLooper()).postDelayed({
+                    serverManager.stop()
+                    isAcquiring.value = false
+                    textSensorData.text = "EEG acquisition ended."
 
-                                    if (file != null) {
-                                        val featuresFile = File(file.parent, "features_${file.name}")
-                                        val generatedFeaturesFile = exporter.extractFeaturesToCsv(file, featuresFile)
-                                        Log.d("NeuroVibe", "Feature file saved to: ${generatedFeaturesFile.absolutePath}")
-                                    }
-                                    // -----
-                                }, 2000) // 2 secondi
-                            }
+                    // Mi creo il file csv e lo salvo nella cartella Download
+                    val exporter = EEGDataProcessor()
+                    val file = exporter.exportRawDataToCsv(acquiredData)
+                    acquiredData.clear()
+                    if(file != null){
+                        val featuresFile = File(file.parent, "features_${file.name}")
+                        val generatedFeaturesFile = exporter.extractFeaturesToCsv(file, featuresFile)
+                        Log.d("NeuroVibe", "Feature file saved to: ${generatedFeaturesFile.absolutePath}")
+
+
+                        // Si può estrarre i dati una volta sola al momento
+                        buttonStartEEG.visibility = View.GONE
+                        buttonUseSmallModel.visibility = View.VISIBLE
+                        buttonUseSmallModel.setOnClickListener {
+                            selectedModelFile = "Smallmodel100Neurons.tflite"
+                            initializeModel(featuresFile)
                         }
-                    ) {
-                        Text(text = if (isAcquiringValue) "Acquiring..." else "Start EEG")
-                    }
-                }
 
+                        buttonUseBigModel.visibility = View.VISIBLE
+                        buttonUseBigModel.setOnClickListener {
+                            selectedModelFile = "Bigmodel1000Neurons.tflite"
+                            initializeModel(featuresFile)
+                        }
+                    }
+                }, 2000)
             }
         }
     }
@@ -156,9 +172,26 @@ class MainActivity : ComponentActivity() {
         serverManager.stop()
     }
 
+    private fun checkAndRequestPermissions() {
+        val permissions = arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+
+        val missingPermissions = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missingPermissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), LOCAL_PERMISSION_REQUEST_CODE)
+        } else {
+            //initializeModel()
+        }
+    }
+
     private fun isNetworkAvailable(): Boolean {
         val connectivityManager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(network)
         return capabilities != null &&
@@ -174,5 +207,26 @@ class MainActivity : ComponentActivity() {
     private fun openWifiSettings() {
         val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
         wifiSettingsLauncher.launch(intent)
+    }
+
+    private fun initializeModel(fileName: File) {
+        selectedModelFile?.let { modelFile ->
+            try {
+                model = TFLiteModel(this, modelFile)
+                val inputData = model?.loadCsvInput(this, fileName)
+                if (inputData != null) {
+                    val output = model?.predict(inputData)
+                    output?.let {
+                        Log.d("PREDIZIONE", "Risultato: ${it.joinToString()}")
+                        Toast.makeText(this, "Predizione: ${it.joinToString()}", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(this, "Errore nel caricamento dei dati di input.", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(this, "Errore nell'inizializzazione del modello.", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 }

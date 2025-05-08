@@ -7,12 +7,55 @@
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
     tools:openDrawer="start">
-
-    <include
-        android:id="@+id/app_bar_main"
-        layout="@layout/app_bar_main"
+    <LinearLayout
+        android:id="@+id/mainLayout"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/textNetworkStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Network status..."
+            android:textSize="16sp"
+            android:paddingBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/textSensorData"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sensor Data"
+            android:visibility="gone"
+            android:textSize="14sp"
+            android:paddingBottom="16dp"/>
+
+        <Button
+            android:id="@+id/buttonStartEEG"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Start EEG" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="16dp" />
+
+        <Button
+            android:id="@+id/buttonUseSmallModel"
+            android:layout_width="200dp"
+            android:layout_height="60dp"
+            android:text="Use Small Model" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="16dp" />
+
+        <Button
+            android:id="@+id/buttonUseBigModel"
+            android:layout_width="200dp"
+            android:layout_height="60dp"
+            android:text="Use Big Model" />
+    </LinearLayout>
 
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/nav_view"
