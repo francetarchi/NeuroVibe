@@ -16,8 +16,8 @@ import kotlin.math.sqrt
 
 
 class EEGDataProcessor {
-    fun exportRawDataToCsv(data: List<SensorData>): File? {
-        val fileName = "eeg_data_${System.currentTimeMillis()}.csv"
+    fun exportRawDataToCsv(data: List<SensorData>, currentSegment : Int): File? {
+        val fileName = "eeg_data_${currentSegment}.csv"
         val header = listOf(
             "accX", "accY", "accZ",
             "gyroX", "gyroY", "gyroZ",
@@ -186,8 +186,12 @@ class EEGDataProcessor {
 
         val row = means + stds + maxs + mins + kurtoses + entropies
 
-        FileWriter(outputFile).use { writer ->
-            writer.appendLine(header.joinToString(","))
+        //Cosa aggiunta da me
+        val writeHeader = !outputFile.exists()
+        FileWriter(outputFile, true).use { writer ->
+            if(writeHeader){
+                writer.appendLine(header.joinToString(","))
+            }
             writer.appendLine(row.joinToString(","))
         }
         return outputFile

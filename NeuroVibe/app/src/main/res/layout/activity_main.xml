@@ -17,7 +17,7 @@
             android:id="@+id/textNetworkStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Network status..."
+            android:text="@string/network_status"
             android:textSize="16sp"
             android:paddingBottom="16dp"/>
 
@@ -25,7 +25,7 @@
             android:id="@+id/textSensorData"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Sensor Data"
+            android:text="@string/sensor_data"
             android:visibility="gone"
             android:textSize="14sp"
             android:paddingBottom="16dp"/>
@@ -34,7 +34,7 @@
             android:id="@+id/buttonStartEEG"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Start EEG" />
+            android:text="@string/start_eeg" />
 
         <Space
             android:layout_width="0dp"
@@ -44,7 +44,7 @@
             android:id="@+id/buttonUseSmallModel"
             android:layout_width="200dp"
             android:layout_height="60dp"
-            android:text="Use Small Model" />
+            android:text="@string/usa_small_model" />
 
         <Space
             android:layout_width="0dp"
@@ -54,7 +54,8 @@
             android:id="@+id/buttonUseBigModel"
             android:layout_width="200dp"
             android:layout_height="60dp"
-            android:text="Use Big Model" />
+            android:text="@string/usa_big_model" />
+
     </LinearLayout>
 
     <com.google.android.material.navigation.NavigationView
@@ -64,5 +65,10 @@
         android:layout_gravity="start"
         android:fitsSystemWindows="true"
         app:headerLayout="@layout/nav_header_main"
-        app:menu="@menu/activity_main_drawer" />
+        app:menu="@menu/activity_main_drawer" >
+
+        <RadioGroup
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </com.google.android.material.navigation.NavigationView>
 </androidx.drawerlayout.widget.DrawerLayout>

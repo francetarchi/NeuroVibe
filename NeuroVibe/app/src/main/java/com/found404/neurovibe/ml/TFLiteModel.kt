@@ -11,7 +11,6 @@ import java.nio.channels.FileChannel
 
 class TFLiteModel(context: Context, modelFileName : String) {
     private val interpreter: Interpreter
-
     init {
         val assetFileDescriptor = context.assets.openFd(modelFileName)
         val fileInputStream = FileInputStream(assetFileDescriptor.fileDescriptor)
@@ -36,11 +35,11 @@ class TFLiteModel(context: Context, modelFileName : String) {
         return output[0]
     }
 
-    fun loadCsvInput(context: Context, file: File): FloatArray? {
+    fun loadCsvInput(context: Context, file: File, linesToSkip: Int): FloatArray? {
         try {
-//          val inputStream = context.assets.open(file)
+//            val inputStream = context.assets.open(file)
             val reader = file.bufferedReader()
-            val firstLine = reader.readLine()
+            repeat(linesToSkip) {reader.readLine()}
             val dataLine = reader.readLine() ?: return null
             val values = dataLine.split(",").map { it.trim().toFloat() }
             return values.toFloatArray()
