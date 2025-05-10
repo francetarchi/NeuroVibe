@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-//import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
@@ -13,9 +12,9 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
-//import android.view.Menu
 import android.view.View
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,7 +23,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
 import com.found404.neurovibe.data.EEGDataProcessor
-//import androidx.lifecycle.Observer
 import com.found404.neurovibe.ml.TFLiteModel
 import mylibrary.mindrove.SensorData
 import mylibrary.mindrove.ServerManager
@@ -68,33 +66,47 @@ class MainActivity : AppCompatActivity() {
     private val sensorDataText = MutableLiveData("No data yet")
     private val networkStatus = MutableLiveData("Checking network status...")
     private val isAcquiring = MutableLiveData(false)
-    //private var isServerManagerStarted = false
+    private val showModelButtons = MutableLiveData(false)
+    private val showEEGButton = MutableLiveData(true)
+    private val showNextImageButton = MutableLiveData(false)
+    private val showImage = MutableLiveData(true)
+
     private var isWifiSettingsOpen = false
     private var selectedModelFile: String? = null
     private var model: TFLiteModel? = null
 
     private lateinit var textNetworkStatus: TextView
     private lateinit var textSensorData: TextView
+    private lateinit var imageView: ImageView
     private lateinit var buttonStartEEG: Button
     private lateinit var buttonUseSmallModel: Button
     private lateinit var buttonUseBigModel: Button
 
+    private val imageList = listOf(
+        R.drawable.image1,
+        R.drawable.image2,
+        R.drawable.image3,
+        R.drawable.image4,
+        R.drawable.image5,
+        R.drawable.image6,
+        R.drawable.image7
+    )
+    private var currentImageIndex = -1
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        //Carico il file di configurazione del layout
+        // Carico il file di configurazione del layout
         setContentView(R.layout.activity_main)
 
-        //Inizializzazione degli elementi base
+        // Inizializzazione degli elementi base
         textNetworkStatus = findViewById(R.id.textNetworkStatus)
         textSensorData = findViewById(R.id.textSensorData)
         buttonStartEEG = findViewById(R.id.buttonStartEEG)
         buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
         buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
 
-
-        buttonStartEEG.visibility = View.GONE
-        buttonUseSmallModel.visibility = View.GONE
-        buttonUseBigModel.visibility = View.GONE
+        imageView = findViewById(R.id.imageView)
+        imageView.visibility = View.VISIBLE
 
         // Handler per la connessione alla rete
         handler = Handler(Looper.getMainLooper())
@@ -128,10 +140,17 @@ class MainActivity : AppCompatActivity() {
             textNetworkStatus.text = it
         }
 
-        isAcquiring.observe(this){ acquiring ->
-            if (!acquiring) {
-                textSensorData.visibility = View.GONE
-            }
+        showEEGButton.observe(this) { show ->
+            buttonStartEEG.visibility = if(show) View.VISIBLE else View.GONE
+        }
+
+        showModelButtons.observe(this) { show ->
+            buttonUseSmallModel.visibility = if (show) View.VISIBLE else View.GONE
+            buttonUseBigModel.visibility = if (show) View.VISIBLE else View.GONE
+        }
+
+        showImage.observe(this) { show ->
+            imageView.visibility = if (show) View.VISIBLE else View.GONE
         }
 
         checkAndRequestPermissions()
@@ -198,21 +217,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startServerManager() {
-
-        val totalSegments = 5
-        val segmentDurationMs = 2000L
-        var currentSegment = 0
-        val segmentHandler = Handler(Looper.getMainLooper())
-        val exporter = EEGDataProcessor()
-
-        acquiredData.clear()
+        showEEGButton.value = true
+        showNextImageButton.value = false
+        showImage.value = true
+        serverManager.start()
 
         buttonStartEEG.setOnClickListener {
+            buttonStartEEG.text = "Next Image"
+            val totalSegments = 5
+            val segmentDurationMs = 2000L
+            var currentSegment = 0
+            val segmentHandler = Handler(Looper.getMainLooper())
+            val exporter = EEGDataProcessor(this)
+
+            acquiredData.clear()
+
+            showNextImageButton.value = false
+            showImage.value = true
+            showEEGButton.value = false
+
+            currentImageIndex = if(currentImageIndex != -1) (currentImageIndex + 1) % imageList.size else 0
+            imageView.setImageResource(imageList[currentImageIndex])
+
             if (isAcquiring.value != true) {
                 isAcquiring.value = true
                 textSensorData.visibility = View.VISIBLE
                 textSensorData.text = getString(R.string.inizio_acquisizione, totalSegments)
-                serverManager.start()
+
 
                 val segmentRunnable = object : Runnable{
                     override fun run(){
@@ -222,17 +253,16 @@ class MainActivity : AppCompatActivity() {
                         val currentData = ArrayList(acquiredData)
                         acquiredData.clear()
 
-                        //esporta i dati in un file CSV
-                        val rawfile = exporter.exportRawDataToCsv(currentData, currentSegment)
+                        // Esportazione dati in un file CSV
+                        val rawfile = exporter.exportRawDataToCsv(currentData, currentSegment, currentImageIndex)
                         if(rawfile != null){
-                            val featuresFile = File(rawfile.parent, "features_image_1.csv")
+                            val featuresFile = File(rawfile.parent, "features_image_${currentImageIndex}.csv")
                             exporter.extractFeaturesToCsv(rawfile, featuresFile)
                         }
 
                         if(currentSegment < totalSegments){
                             segmentHandler.postDelayed(this, segmentDurationMs)
                         } else {
-                            serverManager.stop()
                             isAcquiring.value = false
                             textSensorData.text = getString(R.string.fine_acquisizione)
 
@@ -240,13 +270,17 @@ class MainActivity : AppCompatActivity() {
                             buttonUseSmallModel.visibility = View.VISIBLE
                             buttonUseBigModel.visibility = View.VISIBLE
 
-                            val featuresFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "features_image_1.csv")
+                            val featuresFile = File(this@MainActivity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "features_image_${currentImageIndex}.csv")
+                            showModelButtons.value = true
+                            showNextImageButton.value = true
 
                             buttonUseSmallModel.setOnClickListener {
                                 selectedModelFile = "Smallmodel100Neurons.tflite"
                                 val predizioni = initializeModel(featuresFile)
                                 val predictedClass = finalPrediction(predizioni)
                                 Log.i("Predizione", "Predicted class: $predictedClass")
+                                buttonStartEEG.visibility = View.VISIBLE
+                                showModelButtons.value = false
                             }
 
                             buttonUseBigModel.setOnClickListener {
@@ -254,17 +288,18 @@ class MainActivity : AppCompatActivity() {
                                 val predizioni = initializeModel(featuresFile)
                                 val predictedClass = finalPrediction(predizioni)
                                 Log.i("Predizione", "Predicted class: $predictedClass")
+                                buttonStartEEG.visibility = View.VISIBLE
+                                showModelButtons.value = false
                             }
                         }
                     }
                 }
-
                 segmentHandler.postDelayed(segmentRunnable, segmentDurationMs)
+
             }
         }
-            // Rendi visibili i pulsanti necessari
-            buttonStartEEG.visibility = View.VISIBLE
-        }
+    }
+
     private fun initializeModel(fileName: File): List<Int> {
         val predictedClasses = mutableListOf<Int>()
 
@@ -286,7 +321,6 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this, "Errore alla riga $i", Toast.LENGTH_SHORT).show()
                     }
                 }
-
             } catch (e: Exception) {
                 e.printStackTrace()
                 Toast.makeText(this, "Errore nell'inizializzazione del modello.", Toast.LENGTH_LONG).show()

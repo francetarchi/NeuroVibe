@@ -1,5 +1,6 @@
 package com.found404.neurovibe.data
 
+import android.content.Context
 import android.os.Environment
 import android.util.Log
 import mylibrary.mindrove.SensorData
@@ -15,9 +16,9 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 
-class EEGDataProcessor {
-    fun exportRawDataToCsv(data: List<SensorData>, currentSegment : Int): File? {
-        val fileName = "eeg_data_${currentSegment}.csv"
+class EEGDataProcessor(private val context: Context) {
+    fun exportRawDataToCsv(data: List<SensorData>, currentSegment : Int, currentImage : Int): File? {
+        val fileName = "eeg_data_${currentSegment}_image_${currentImage}.csv"
         val header = listOf(
             "accX", "accY", "accZ",
             "gyroX", "gyroY", "gyroZ",
@@ -51,8 +52,7 @@ class EEGDataProcessor {
             }
         }
 
-        val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        if (!downloadDir.exists()) downloadDir.mkdirs()
+        val downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
 
         val file = File(downloadDir, fileName)
         return try {
@@ -186,7 +186,6 @@ class EEGDataProcessor {
 
         val row = means + stds + maxs + mins + kurtoses + entropies
 
-        //Cosa aggiunta da me
         val writeHeader = !outputFile.exists()
         FileWriter(outputFile, true).use { writer ->
             if(writeHeader){
