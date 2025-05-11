@@ -15,11 +15,6 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        externalNativeBuild {
-            cmake {
-                cppFlags += ""
-            }
-        }
     }
 
     buildTypes {
@@ -41,21 +36,14 @@ android {
     buildFeatures {
         viewBinding = true
     }
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
 }
 
 dependencies {
     implementation(files("libs/mindRove-release_v2_0.aar"))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
-    // ----------
+
     implementation(libs.commons.math3)
     implementation(libs.tensorflow.lite)
-    // ----------
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -65,15 +53,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
-
-    //////////////// Aggiunte per provare .aar ////////////////
-
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
-
-    // For live data
-    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
-    implementation("androidx.compose.runtime:runtime:1.6.1")
-    ///////////////////////////////////////////////////////////
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
