@@ -1,7 +1,6 @@
 package com.found404.neurovibe
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
@@ -27,6 +26,7 @@ import com.found404.neurovibe.ml.TFLiteModel
 import mylibrary.mindrove.SensorData
 import mylibrary.mindrove.ServerManager
 import java.io.File
+import android.net.wifi.WifiManager
 
 private const val LOCAL_PERMISSION_REQUEST_CODE = 100
 
@@ -63,13 +63,16 @@ class MainActivity : AppCompatActivity() {
         sensorDataText.postValue(dataString)
     }
 
+    private val wifiSettingsLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            isWifiSettingsOpen = false
+        }
+
     private val sensorDataText = MutableLiveData("No data yet")
     private val networkStatus = MutableLiveData("Checking network status...")
     private val isAcquiring = MutableLiveData(false)
     private val showModelButtons = MutableLiveData(false)
     private val showEEGButton = MutableLiveData(true)
-    private val showNextImageButton = MutableLiveData(false)
-    private val showImage = MutableLiveData(true)
 
     private var isWifiSettingsOpen = false
     private var selectedModelFile: String? = null
@@ -95,6 +98,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         // Carico il file di configurazione del layout
         setContentView(R.layout.activity_main)
 
@@ -106,7 +110,6 @@ class MainActivity : AppCompatActivity() {
         buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
 
         imageView = findViewById(R.id.imageView)
-        imageView.visibility = View.VISIBLE
 
         // Handler per la connessione alla rete
         handler = Handler(Looper.getMainLooper())
@@ -149,12 +152,10 @@ class MainActivity : AppCompatActivity() {
             buttonUseBigModel.visibility = if (show) View.VISIBLE else View.GONE
         }
 
-        showImage.observe(this) { show ->
-            imageView.visibility = if (show) View.VISIBLE else View.GONE
-        }
-
         checkAndRequestPermissions()
     }
+
+
 
     override fun onDestroy() {
         super.onDestroy()
@@ -191,15 +192,10 @@ class MainActivity : AppCompatActivity() {
             if(grantResults.all { it == PackageManager.PERMISSION_GRANTED }){
                 startServerManager()
             } else {
-                Toast.makeText(this, "I permessi sono necessari per avviare l'app.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Permissions are required to start the app.", Toast.LENGTH_LONG).show()
             }
         }
     }
-
-    private val wifiSettingsLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            isWifiSettingsOpen = false
-        }
 
     private fun openWifiSettings() {
         val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
@@ -208,7 +204,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun isNetworkAvailable(): Boolean {
         val connectivityManager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(network)
         return capabilities != null &&
@@ -216,13 +212,33 @@ class MainActivity : AppCompatActivity() {
                         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
     }
 
+    private fun isConnectedToMindRove(): Boolean {
+        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+
+        val isWifiConnected = capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+
+        if (isWifiConnected) {
+            val wifiManager = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+            val ssid = wifiManager.connectionInfo.ssid
+            return ssid == "\"MindRove_ARC_ae01ec\""
+        }
+
+        return false
+    }
+
     private fun startServerManager() {
         showEEGButton.value = true
-        showNextImageButton.value = false
-        showImage.value = true
         serverManager.start()
 
         buttonStartEEG.setOnClickListener {
+            // Controllo che il dispositivo sia connesso al casco
+            if (!isConnectedToMindRove()) {
+                Toast.makeText(this, "Connect to the headset's Wi-Fi network to get started.", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
             buttonStartEEG.text = "Next Image"
             val totalSegments = 5
             val segmentDurationMs = 2000L
@@ -232,8 +248,6 @@ class MainActivity : AppCompatActivity() {
 
             acquiredData.clear()
 
-            showNextImageButton.value = false
-            showImage.value = true
             showEEGButton.value = false
 
             currentImageIndex = if(currentImageIndex != -1) (currentImageIndex + 1) % imageList.size else 0
@@ -241,7 +255,6 @@ class MainActivity : AppCompatActivity() {
 
             if (isAcquiring.value != true) {
                 isAcquiring.value = true
-                textSensorData.visibility = View.VISIBLE
                 textSensorData.text = getString(R.string.inizio_acquisizione, totalSegments)
 
 
@@ -266,20 +279,24 @@ class MainActivity : AppCompatActivity() {
                             isAcquiring.value = false
                             textSensorData.text = getString(R.string.fine_acquisizione)
 
-                            buttonStartEEG.visibility = View.GONE
-                            buttonUseSmallModel.visibility = View.VISIBLE
-                            buttonUseBigModel.visibility = View.VISIBLE
+                            showEEGButton.value = false
 
-                            val featuresFile = File(this@MainActivity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "features_image_${currentImageIndex}.csv")
+                            val dir = this@MainActivity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                            if (dir == null) {
+                                Toast.makeText(this@MainActivity, "Unable to access the save folder.", Toast.LENGTH_LONG).show()
+                                return
+                            }
+                            val featuresFile = File(dir, "features_image_${currentImageIndex}.csv")
+
                             showModelButtons.value = true
-                            showNextImageButton.value = true
 
                             buttonUseSmallModel.setOnClickListener {
                                 selectedModelFile = "Smallmodel100Neurons.tflite"
                                 val predizioni = initializeModel(featuresFile)
                                 val predictedClass = finalPrediction(predizioni)
                                 Log.i("Predizione", "Predicted class: $predictedClass")
-                                buttonStartEEG.visibility = View.VISIBLE
+
+                                showEEGButton.value = true
                                 showModelButtons.value = false
                             }
 
@@ -288,7 +305,8 @@ class MainActivity : AppCompatActivity() {
                                 val predizioni = initializeModel(featuresFile)
                                 val predictedClass = finalPrediction(predizioni)
                                 Log.i("Predizione", "Predicted class: $predictedClass")
-                                buttonStartEEG.visibility = View.VISIBLE
+
+                                showEEGButton.value = true
                                 showModelButtons.value = false
                             }
                         }
@@ -313,17 +331,17 @@ class MainActivity : AppCompatActivity() {
                         output?.let {
                             val predictedClass = it.indices.maxByOrNull { idx -> it[idx] } ?: -1
                             predictedClasses.add(predictedClass)
-                            Log.d("PREDIZIONE", "Riga $i → Classe $predictedClass → Output: ${it.joinToString()}")
-                            Toast.makeText(this, "Riga $i → Classe $predictedClass", Toast.LENGTH_SHORT).show()
+                            Log.d("PREDIZIONE", "Row $i → Class $predictedClass → Output: ${it.joinToString()}")
+                            Toast.makeText(this, "Row $i → Class $predictedClass", Toast.LENGTH_SHORT).show()
                         }
                     } else {
                         Log.e("PREDIZIONE", "Errore nel caricamento dei dati di input alla riga $i")
-                        Toast.makeText(this, "Errore alla riga $i", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Error at row $i", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                Toast.makeText(this, "Errore nell'inizializzazione del modello.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Error in model initialization.", Toast.LENGTH_LONG).show()
             }
         }
         return predictedClasses
