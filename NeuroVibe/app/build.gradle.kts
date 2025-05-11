@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.found404.neurovibe"
-        minSdk = 24
+        minSdk = 29 // ---
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -50,6 +50,12 @@ android {
 }
 
 dependencies {
+    implementation(files("libs/mindRove-release_v2_0.aar"))
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
+    // ----------
+    implementation(libs.commons.math3)
+    implementation(libs.tensorflow.lite)
+    // ----------
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
