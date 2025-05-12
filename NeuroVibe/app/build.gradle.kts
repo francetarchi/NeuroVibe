@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.androidx.runtime.livedata)
     implementation(libs.ui)
     implementation(libs.androidx.runtime)
+    implementation(libs.commons.math3)
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
