@@ -1,8 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    // --------
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -36,12 +34,7 @@ android {
         jvmTarget = "11"
     }
     buildFeatures {
-        compose = true
         viewBinding = true
-    }
-    // -------
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.12"
     }
 }
 
@@ -49,22 +42,8 @@ dependencies {
     implementation(files("libs/mindRove-release_v2_0.aar"))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
     // ----------
-    val composeBom = platform("androidx.compose:compose-bom:2024.04.01")
-    implementation(composeBom)
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.material3)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.runtime.livedata)
-    implementation(libs.ui)
-    implementation(libs.androidx.runtime)
     implementation(libs.commons.math3)
-
-    debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
-
-
-    implementation(libs.commons.math3)
+    implementation(libs.tensorflow.lite)
     // ----------
 
     implementation(libs.androidx.core.ktx)
@@ -75,7 +54,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
-    implementation(libs.tensorflow.lite)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

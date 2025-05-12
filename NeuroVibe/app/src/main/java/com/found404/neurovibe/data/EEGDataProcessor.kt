@@ -1,5 +1,6 @@
 package com.found404.neurovibe.data
 
+import android.content.Context
 import android.os.Environment
 import android.util.Log
 import mylibrary.mindrove.SensorData
@@ -11,13 +12,16 @@ import java.io.OutputStreamWriter
 import kotlin.math.ln
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
 
-class EEGDataProcessor {
-    fun exportRawDataToCsv(data: List<SensorData>): File? {
-        val fileName = "eeg_data_${System.currentTimeMillis()}.csv"
+class EEGDataProcessor(private val context: Context) {
+    fun exportRawDataToCsv(data: List<SensorData>, currentSegment : Int, currentImage : Int): File? {
+        val fileName = "eeg_data_${currentSegment}_image_${currentImage}.csv"
+
+        // Intestazione delle colonne
         val header = listOf(
             "accX", "accY", "accZ",
             "gyroX", "gyroY", "gyroZ",
@@ -26,6 +30,7 @@ class EEGDataProcessor {
             "measurementNumber"
         ).joinToString(",")
 
+        // Contenuto del file in formato CSV
         val fileContents = buildString {
             appendLine(header)
             data.forEach { sensor ->
@@ -51,11 +56,12 @@ class EEGDataProcessor {
             }
         }
 
-        val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        if (!downloadDir.exists()) downloadDir.mkdirs()
+        // Directory di destinazione
+        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
 
-        val file = File(downloadDir, fileName)
+        val file = File(dir, fileName)
         return try {
+            // Scrittura su file
             FileOutputStream(file).use { fos ->
                 OutputStreamWriter(fos).use { writer ->
                     writer.write(fileContents)
@@ -71,53 +77,63 @@ class EEGDataProcessor {
         }
     }
 
-    private fun bandpassFilter(
+    // Normalizza il segnale (media 0, deviazione standard 1)
+    private fun normalizeSignal(input: DoubleArray): DoubleArray {
+        val mean = input.average()
+        val stdDev = sqrt(input.map { (it - mean).pow(2) }.average())
+
+        return input.map { (it - mean) / stdDev }.toDoubleArray()
+    }
+
+    // Applica un filtro FIR passa banda (con finestra di Hamming)
+    private fun firBandpassFilter(
         input: DoubleArray,
-        fs: Double, // frequenza di campionamento in Hz
-        f1: Double, // frequenza di taglio bassa
-        f2: Double  // frequenza di taglio alta
+        fs: Double,             // frequenza di campionamento
+        lowCut: Double,         // frequenza di taglio inferiore
+        highCut: Double,        // frequenza di taglio superiore
+        order: Int              // ordine del filtro (numero coefficienti - 1)
     ): DoubleArray {
-        // Pre-warp
-        val nyquist = fs / 2
-        val low = f1 / nyquist
-        val high = f2 / nyquist
+        val nyquist = fs / 2.0
+        val low = lowCut / nyquist
+        val high = highCut / nyquist
+        val coeffs = DoubleArray(order + 1)
 
-        val q = 1.0 / (high - low)
+        val M = order
+        val mid = M / 2.0
 
-        val omega = 2 * PI * sqrt(low * high)
-        val alpha = sin(omega) / (2.0 * q)
+        // Calcolo dei coefficienti con finestra di Hamming
+        for (n in 0..M) {
+            val sincHigh = if ((n - mid) == 0.0) 2 * high else sin(2 * PI * high * (n - mid)) / (PI * (n - mid))
+            val sincLow = if ((n - mid) == 0.0) 2 * low else sin(2 * PI * low * (n - mid)) / (PI * (n - mid))
+            val window = 0.54 - 0.46 * cos(2 * PI * n / M) // Hamming
+            coeffs[n] = (sincHigh - sincLow) * window
+        }
 
-        val b0 = alpha
-        val b1 = 0.0
-        val b2 = -alpha
-        val a0 = 1 + alpha
-        val a1 = -2 * cos(omega)
-        val a2 = 1 - alpha
+        // Normalizzazione per mantenere il guadagno a 1
+        val gain = coeffs.sum()
+        for (i in coeffs.indices) {
+            coeffs[i] /= gain
+        }
 
-        // Normalizzazione
-        val b = doubleArrayOf(b0 / a0, b1 / a0, b2 / a0)
-        val a = doubleArrayOf(1.0, a1 / a0, a2 / a0)
+        // Zero-padding ai bordi (pad a sinistra con M zeri)
+        val paddedInput = DoubleArray(input.size + M) { i ->
+            if (i < M) 0.0 else input[i - M]
+        }
 
-        // Output
+        // Convoluzione (applicazione filtro FIR)
         val output = DoubleArray(input.size)
-        var x1 = 0.0; var x2 = 0.0
-        var y1 = 0.0; var y2 = 0.0
-
-        for (i in input.indices) {
-            val x0 = input[i]
-            val y0 = b[0]*x0 + b[1]*x1 + b[2]*x2 - a[1]*y1 - a[2]*y2
-
-            output[i] = y0
-
-            x2 = x1
-            x1 = x0
-            y2 = y1
-            y1 = y0
+        for (i in output.indices) {
+            var acc = 0.0
+            for (j in coeffs.indices) {
+                acc += coeffs[j] * paddedInput[i + M - j]
+            }
+            output[i] = acc
         }
 
         return output
     }
 
+    // Estrae feature statistiche dai canali EEG filtrati e le salva in un CSV
     fun extractFeaturesToCsv(inputFile: File, outputFile: File): File {
         val channelData = Array(8) { mutableListOf<Double>() }
 
@@ -131,6 +147,7 @@ class EEGDataProcessor {
         // -------- Pz <- C2 -------- ch4
         // -------- P4 <- C2 -------- ch4
 
+        // Parsing del file e raccolta dei dati dei canali EEG
         val lines = inputFile.readLines()
         lines.forEachIndexed { index, line ->
             if (index == 0) return@forEachIndexed // salto l'header del file
@@ -144,11 +161,7 @@ class EEGDataProcessor {
             }
         }
 
-        // Parametri del filtro passa banda
-        val fs = 250.0  // frequenza di campionamento
-        val f1 = 0.5
-        val f2 = 49.0
-
+        // Riordinamento dei canali secondo la mappa degli elettrodi
         val reorderedChannels = listOf(
             channelData[0], // F3 <- ch1
             channelData[2], // Fz <- ch3
@@ -160,21 +173,26 @@ class EEGDataProcessor {
             channelData[3]  // P4 <- ch4
         )
 
+        // Calcolo delle statistiche per ogni canale filtrato
         val stats = reorderedChannels.map { raw ->
-            val filtered = bandpassFilter(raw.toDoubleArray(), fs, f1, f2)
+            val normalizedInput = normalizeSignal(raw.toDoubleArray())
+            val filtered = firBandpassFilter(normalizedInput, 250.0, 1.0, 50.0, 50)
             DescriptiveStatistics(filtered)
         }
 
+        // Estrazione delle feature: media, std, max, min, curtosi, entropia di Shannon
         val means = stats.map { it.mean }
         val stds = stats.map { it.standardDeviation }
         val maxs = stats.map { it.max }
         val mins = stats.map { it.min }
         val kurtoses = stats.map { it.kurtosis }
         val entropies = reorderedChannels.map { raw ->
-            val filtered = bandpassFilter(raw.toDoubleArray(), fs, f1, f2)
+            val normalizedInput = normalizeSignal(raw.toDoubleArray())
+            val filtered = firBandpassFilter(normalizedInput, 250.0, 1.0, 50.0, 50)
             computeShannonEntropy(filtered.toList())
         }
 
+        // Intestazione file features
         val header = listOf(
             "MeanF3","MeanFz","MeanF4","MeanC3","MeanC4","MeanP3","MeanPz","MeanP4",
             "StdF3","StdFz","StdF4","StdC3","StdC4","StdP3","StdPz","StdP4",
@@ -186,13 +204,18 @@ class EEGDataProcessor {
 
         val row = means + stds + maxs + mins + kurtoses + entropies
 
-        FileWriter(outputFile).use { writer ->
-            writer.appendLine(header.joinToString(","))
+        // Scrittura sul file in append
+        val writeHeader = !outputFile.exists()
+        FileWriter(outputFile, true).use { writer ->
+            if(writeHeader){
+                writer.appendLine(header.joinToString(","))
+            }
             writer.appendLine(row.joinToString(","))
         }
         return outputFile
     }
 
+    // Calcola l'entropia di Shannon di una sequenza
     private fun computeShannonEntropy(values: List<Double>): Double {
         if (values.isEmpty()) return 0.0
 

@@ -26,7 +26,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/sensor_data"
-            android:visibility="gone"
+            android:visibility="visible"
             android:textSize="14sp"
             android:paddingBottom="16dp"/>
 
@@ -55,6 +55,13 @@
             android:layout_width="200dp"
             android:layout_height="60dp"
             android:text="@string/usa_big_model" />
+
+        <ImageView
+            android:id="@+id/imageView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scaleType="fitCenter"
+            android:visibility="visible" />
 
     </LinearLayout>
 
