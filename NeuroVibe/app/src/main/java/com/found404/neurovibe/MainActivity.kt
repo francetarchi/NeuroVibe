@@ -1,6 +1,7 @@
 package com.found404.neurovibe
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
@@ -27,6 +28,7 @@ import mylibrary.mindrove.SensorData
 import mylibrary.mindrove.ServerManager
 import java.io.File
 import android.net.wifi.WifiManager
+import androidx.appcompat.app.AppCompatDelegate
 
 private const val LOCAL_PERMISSION_REQUEST_CODE = 100
 
@@ -57,6 +59,8 @@ class MainActivity : AppCompatActivity() {
             Channel 6: ${sensorData.channel6}
             Channel 7: ${sensorData.channel7}
             Channel 8: ${sensorData.channel8}
+            Battery voltage (mV): ${sensorData.voltage}
+            Battery percentage %: ${estimateBatteryPercentage(sensorData.voltage)}
             Measurement #: ${sensorData.numberOfMeasurement}
         """.trimIndent()
 
@@ -73,7 +77,7 @@ class MainActivity : AppCompatActivity() {
     private val isAcquiring = MutableLiveData(false)
     private val showModelButtons = MutableLiveData(false)
     private val showEEGButton = MutableLiveData(true)
-
+    private val totalSegments = 5
     private var isWifiSettingsOpen = false
     private var selectedModelFile: String? = null
     private var model: TFLiteModel? = null
@@ -95,12 +99,18 @@ class MainActivity : AppCompatActivity() {
         R.drawable.image7
     )
     private var currentImageIndex = -1
+    private var completeRound = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Imposta il tema chiaro a scopo di debug
+        // TODO: Rimuovere questa riga in produzione
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+
         super.onCreate(savedInstanceState)
 
         // Carico il file di configurazione del layout
         setContentView(R.layout.activity_main)
+
 
         // Inizializzazione degli elementi base
         textNetworkStatus = findViewById(R.id.textNetworkStatus)
@@ -163,11 +173,6 @@ class MainActivity : AppCompatActivity() {
         serverManager.stop()
     }
 
-    override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
-        menuInflater.inflate(R.menu.main, menu)
-        return true
-    }
-
     private fun checkAndRequestPermissions() {
         val permissions = arrayOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -228,6 +233,7 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
+    @SuppressLint("SetTextI18n")
     private fun startServerManager() {
         showEEGButton.value = true
         serverManager.start()
@@ -240,7 +246,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             buttonStartEEG.text = "Next Image"
-            val totalSegments = 5
             val segmentDurationMs = 2000L
             var currentSegment = 0
             val segmentHandler = Handler(Looper.getMainLooper())
@@ -251,6 +256,7 @@ class MainActivity : AppCompatActivity() {
             showEEGButton.value = false
 
             currentImageIndex = if(currentImageIndex != -1) (currentImageIndex + 1) % imageList.size else 0
+            if (currentImageIndex == 0) completeRound += 1
             imageView.setImageResource(imageList[currentImageIndex])
 
             if (isAcquiring.value != true) {
@@ -324,15 +330,14 @@ class MainActivity : AppCompatActivity() {
         selectedModelFile?.let { modelFile ->
             try {
                 model = TFLiteModel(this, modelFile)
-                for(i in 1..5){
-                    val inputData = model?.loadCsvInput(this, fileName, linesToSkip = i)
+                for(i in 1..totalSegments){
+                    val inputData = model?.loadCsvInput(this, fileName, linesToSkip = i + completeRound * totalSegments)
                     if (inputData != null) {
                         val output = model?.predict(inputData)
                         output?.let {
                             val predictedClass = it.indices.maxByOrNull { idx -> it[idx] } ?: -1
                             predictedClasses.add(predictedClass)
                             Log.d("PREDIZIONE", "Row $i → Class $predictedClass → Output: ${it.joinToString()}")
-                            Toast.makeText(this, "Row $i → Class $predictedClass", Toast.LENGTH_SHORT).show()
                         }
                     } else {
                         Log.e("PREDIZIONE", "Errore nel caricamento dei dati di input alla riga $i")
@@ -348,10 +353,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun finalPrediction(predictedClasses: List<Int>): Int{
-        return predictedClasses
+        val predictedClasses = predictedClasses
             .groupingBy { it }
             .eachCount()
             .maxByOrNull { it.value }
             ?.key ?: -1
+
+        Toast.makeText(this, "Predicted classes: $predictedClasses", Toast.LENGTH_LONG).show()
+
+        return predictedClasses
+    }
+
+    private fun estimateBatteryPercentage(mv: UInt): Int {
+        val table = listOf(
+            4200 to 100,
+            4100 to 90,
+            4000 to 80,
+            3900 to 75,
+            3800 to 70,
+            3700 to 65,
+            3600 to 50,
+            3500 to 45,
+            3400 to 40,
+            3300 to 30,
+            3200 to 10,
+            3000 to 0
+        )
+
+        for (i in 0 until table.size - 1) {
+            val (v1, p1) = table[i]
+            val (v2, p2) = table[i + 1]
+
+            if (mv >= v2.toUInt() && mv <= v1.toUInt()) {
+                // Interpolazione lineare tra i due punti
+                val fraction = (mv - v2.toUInt()).toDouble() / (v1 - v2)
+                val percent = p2 + fraction * (p1 - p2)
+                return percent.toInt().coerceIn(0, 100)
+            }
+        }
+        return if (mv >= 4200u) 100 else 0
     }
 }

@@ -19,4 +19,6 @@
     <string name="inizio_acquisizione">Acquiring EEG… (0/%1$d)</string>
     <string name="acquisizione">Acquiring EEG… (%1$d/%2$d)</string>
     <string name="fine_acquisizione">EEG acquisition complete.</string>
+    <string name="neurovibe">NeuroVibe logo</string>
+    <string name="gallery">Gallery</string>
 </resources>
