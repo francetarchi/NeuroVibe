@@ -30,6 +30,22 @@
             android:textSize="14sp"
             android:paddingBottom="16dp"/>
 
+        <TextView
+            android:id="@+id/textAcquiring"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:textSize="14sp"
+            android:paddingBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/textBatteryStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:textSize="14sp"
+            android:paddingBottom="16dp"/>
+
         <Button
             android:id="@+id/buttonStartEEG"
             android:layout_width="wrap_content"
