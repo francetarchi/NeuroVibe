@@ -7,9 +7,7 @@
     android:id="@+id/drawer_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fitsSystemWindows="true"
-    >
-<!--    tools:openDrawer="start"-->
+    android:fitsSystemWindows="true" >
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/mainLayout"
@@ -30,19 +28,21 @@
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintVertical_bias="0.168" />
 
+
         <TextView
             android:id="@+id/textSensorData"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="44dp"
             android:paddingBottom="16dp"
             android:text="@string/sensor_data"
             android:textSize="14sp"
-            android:visibility="visible"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.498"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/buttonStartEEG" />
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.049" />
 
         <TextView
             android:id="@+id/textNetworkStatus"
@@ -55,10 +55,9 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.498"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/textSensorData"
-            app:layout_constraintVertical_bias="0.19"
+            app:layout_constraintTop_toBottomOf="@+id/buttonStartEEG"
+            app:layout_constraintVertical_bias="0.122"
             tools:ignore="TextContrastCheck" />
-
 
         <Button
             android:id="@+id/buttonStartEEG"
@@ -82,17 +81,15 @@
             style="@style/Widget.Material3.Button"
             android:layout_width="200dp"
             android:layout_height="60dp"
-            android:layout_marginBottom="4dp"
+            android:layout_marginTop="124dp"
             android:text="@string/usa_small_model"
             android:textSize="14sp"
             android:textStyle="bold"
             android:visibility="invisible"
-            app:layout_constraintBottom_toTopOf="@+id/buttonUseBigModel"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.497"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintVertical_bias="0.908"
             tools:ignore="TextContrastCheck,TextSizeCheck" />
 
         <Button
@@ -100,18 +97,19 @@
             style="@style/Widget.Material3.Button"
             android:layout_width="200dp"
             android:layout_height="60dp"
-            android:layout_marginBottom="108dp"
             android:text="@string/usa_big_model"
             android:textSize="14sp"
             android:textStyle="bold"
             android:visibility="invisible"
-            app:layout_constraintBottom_toTopOf="@+id/buttonStartEEG"
+            app:layout_constraintBottom_toTopOf="@+id/galleryImageView"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.497"
-            app:layout_constraintStart_toStartOf="parent" />
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/buttonUseSmallModel"
+            app:layout_constraintVertical_bias="0.118" />
 
         <ImageView
-            android:id="@+id/imageView"
+            android:id="@+id/galleryImageView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:contentDescription="@string/gallery"
@@ -122,18 +120,4 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
-
-<!--    <com.google.android.material.navigation.NavigationView-->
-<!--        android:id="@+id/nav_view"-->
-<!--        android:layout_width="wrap_content"-->
-<!--        android:layout_height="match_parent"-->
-<!--        android:layout_gravity="start"-->
-<!--        android:fitsSystemWindows="true"-->
-<!--        app:headerLayout="@layout/nav_header_main"-->
-<!--        app:menu="@menu/activity_main_drawer" >-->
-
-<!--        <RadioGroup-->
-<!--            android:layout_width="match_parent"-->
-<!--            android:layout_height="match_parent" />-->
-<!--    </com.google.android.material.navigation.NavigationView>-->
 </androidx.drawerlayout.widget.DrawerLayout>

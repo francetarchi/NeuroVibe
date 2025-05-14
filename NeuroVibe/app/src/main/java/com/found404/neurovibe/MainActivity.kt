@@ -84,7 +84,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var textNetworkStatus: TextView
     private lateinit var textSensorData: TextView
-    private lateinit var imageView: ImageView
+    private lateinit var logoImageView: ImageView
+    private lateinit var galleryImageView: ImageView
     private lateinit var buttonStartEEG: Button
     private lateinit var buttonUseSmallModel: Button
     private lateinit var buttonUseBigModel: Button
@@ -102,9 +103,12 @@ class MainActivity : AppCompatActivity() {
     private var completeRound = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Imposta il tema chiaro a scopo di debug
         // TODO: Rimuovere questa riga in produzione
+        // Imposta il tema chiaro a scopo di debug
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+
+        // Impedisce all'applicazione di andare in modalità landscape
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         super.onCreate(savedInstanceState)
 
@@ -118,8 +122,8 @@ class MainActivity : AppCompatActivity() {
         buttonStartEEG = findViewById(R.id.buttonStartEEG)
         buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
         buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
-
-        imageView = findViewById(R.id.imageView)
+        galleryImageView = findViewById(R.id.galleryImageView)
+        logoImageView = findViewById(R.id.logoImageView)
 
         // Handler per la connessione alla rete
         handler = Handler(Looper.getMainLooper())
@@ -127,11 +131,7 @@ class MainActivity : AppCompatActivity() {
             override fun run() {
                 val isNetworkAvailable = isNetworkAvailable()
                 if (!isNetworkAvailable) {
-                    networkStatus.value = "No network connection. Please enable Wi-Fi."
-                    if (!isWifiSettingsOpen) {
-                        openWifiSettings()
-                        isWifiSettingsOpen = true
-                    }
+                    networkStatus.value = "No network connection.\nPlease enable Wi-Fi."
                 } else {
                     networkStatus.value = "Connected to the network."
                     isWifiSettingsOpen = false
@@ -164,8 +164,6 @@ class MainActivity : AppCompatActivity() {
 
         checkAndRequestPermissions()
     }
-
-
 
     override fun onDestroy() {
         super.onDestroy()
@@ -242,22 +240,31 @@ class MainActivity : AppCompatActivity() {
             // Controllo che il dispositivo sia connesso al casco
             if (!isConnectedToMindRove()) {
                 Toast.makeText(this, "Connect to the headset's Wi-Fi network to get started.", Toast.LENGTH_LONG).show()
+
+                // Apro automaticamente le impostazione del WiFi
+                if (!isWifiSettingsOpen) {
+                    openWifiSettings()
+                    isWifiSettingsOpen = true
+                }
                 return@setOnClickListener
             }
+
+            acquiredData.clear()
 
             buttonStartEEG.text = "Next Image"
             val segmentDurationMs = 2000L
             var currentSegment = 0
             val segmentHandler = Handler(Looper.getMainLooper())
             val exporter = EEGDataProcessor(this)
-
-            acquiredData.clear()
-
             showEEGButton.value = false
+
+            logoImageView.visibility = View.GONE
+            textSensorData.visibility = View.VISIBLE
+            textNetworkStatus.visibility = View.GONE
 
             currentImageIndex = if(currentImageIndex != -1) (currentImageIndex + 1) % imageList.size else 0
             if (currentImageIndex == 0) completeRound += 1
-            imageView.setImageResource(imageList[currentImageIndex])
+            galleryImageView.setImageResource(imageList[currentImageIndex])
 
             if (isAcquiring.value != true) {
                 isAcquiring.value = true
@@ -285,8 +292,6 @@ class MainActivity : AppCompatActivity() {
                             isAcquiring.value = false
                             textSensorData.text = getString(R.string.fine_acquisizione)
 
-                            showEEGButton.value = false
-
                             val dir = this@MainActivity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
                             if (dir == null) {
                                 Toast.makeText(this@MainActivity, "Unable to access the save folder.", Toast.LENGTH_LONG).show()
@@ -302,8 +307,11 @@ class MainActivity : AppCompatActivity() {
                                 val predictedClass = finalPrediction(predizioni)
                                 Log.i("Predizione", "Predicted class: $predictedClass")
 
-                                showEEGButton.value = true
                                 showModelButtons.value = false
+                                showEEGButton.value = true
+
+                                textSensorData.visibility = View.GONE
+                                textNetworkStatus.visibility = View.VISIBLE
                             }
 
                             buttonUseBigModel.setOnClickListener {
@@ -312,8 +320,11 @@ class MainActivity : AppCompatActivity() {
                                 val predictedClass = finalPrediction(predizioni)
                                 Log.i("Predizione", "Predicted class: $predictedClass")
 
-                                showEEGButton.value = true
                                 showModelButtons.value = false
+                                showEEGButton.value = true
+
+                                textSensorData.visibility = View.GONE
+                                textNetworkStatus.visibility = View.VISIBLE
                             }
                         }
                     }
