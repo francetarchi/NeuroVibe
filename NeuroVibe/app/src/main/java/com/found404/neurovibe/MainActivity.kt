@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private val acquiredData = mutableListOf<SensorData>()
     private lateinit var handler: Handler
     private lateinit var runnable: Runnable
+    private var voltage: UInt = 0u
 
     private val serverManager = ServerManager { sensorData: SensorData ->
         if (isAcquiring.value == true) {
@@ -59,10 +60,10 @@ class MainActivity : AppCompatActivity() {
             Channel 6: ${sensorData.channel6}
             Channel 7: ${sensorData.channel7}
             Channel 8: ${sensorData.channel8}
-            Battery voltage (mV): ${sensorData.voltage}
-            Battery percentage %: ${estimateBatteryPercentage(sensorData.voltage)}
             Measurement #: ${sensorData.numberOfMeasurement}
         """.trimIndent()
+
+        voltage = sensorData.voltage
 
         sensorDataText.postValue(dataString)
     }
@@ -84,6 +85,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var textNetworkStatus: TextView
     private lateinit var textSensorData: TextView
+    private lateinit var textAcquiring: TextView
+    private lateinit var textBatteryStatus: TextView
     private lateinit var logoImageView: ImageView
     private lateinit var galleryImageView: ImageView
     private lateinit var buttonStartEEG: Button
@@ -115,15 +118,27 @@ class MainActivity : AppCompatActivity() {
         // Carico il file di configurazione del layout
         setContentView(R.layout.activity_main)
 
-
         // Inizializzazione degli elementi base
         textNetworkStatus = findViewById(R.id.textNetworkStatus)
         textSensorData = findViewById(R.id.textSensorData)
+        textAcquiring = findViewById(R.id.textAcquiring)
+        textBatteryStatus = findViewById(R.id.textBatteryStatus)
         buttonStartEEG = findViewById(R.id.buttonStartEEG)
         buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
         buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
         galleryImageView = findViewById(R.id.galleryImageView)
         logoImageView = findViewById(R.id.logoImageView)
+
+        val dir = this.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+
+        // Pulisco la cartella /storage/emulated/0/Android/data/com.found404.neurovibe/files/Download/
+        dir?.let {
+            if (it.exists() && it.isDirectory) {
+                it.listFiles()?.forEach { file ->
+                    file.delete()
+                }
+            }
+        }
 
         // Handler per la connessione alla rete
         handler = Handler(Looper.getMainLooper())
@@ -164,6 +179,7 @@ class MainActivity : AppCompatActivity() {
 
         checkAndRequestPermissions()
     }
+
 
     override fun onDestroy() {
         super.onDestroy()
@@ -252,10 +268,17 @@ class MainActivity : AppCompatActivity() {
             acquiredData.clear()
 
             buttonStartEEG.text = "Next Image"
+            // Mostro stato della batteria del caschetto
+            var batteryString = if(estimateBatteryPercentage(voltage) == 120) "Charging..." else "${estimateBatteryPercentage(voltage)} %"
+            textBatteryStatus.text = getString(R.string.battery_status, batteryString)
+            textBatteryStatus.visibility = View.VISIBLE
+
+            buttonStartEEG.text = getString(R.string.next_image)
             val segmentDurationMs = 2000L
-            var currentSegment = 0
+            var currentSegment = 1
             val segmentHandler = Handler(Looper.getMainLooper())
             val exporter = EEGDataProcessor(this)
+
             showEEGButton.value = false
 
             logoImageView.visibility = View.GONE
@@ -268,13 +291,14 @@ class MainActivity : AppCompatActivity() {
 
             if (isAcquiring.value != true) {
                 isAcquiring.value = true
-                textSensorData.text = getString(R.string.inizio_acquisizione, totalSegments)
+                textAcquiring.visibility = View.VISIBLE
+                textAcquiring.text = getString(R.string.inizio_acquisizione, totalSegments)
 
 
                 val segmentRunnable = object : Runnable{
                     override fun run(){
                         currentSegment++
-                        textSensorData.text = getString(R.string.acquisizione, currentSegment, totalSegments)
+                        textAcquiring.text = getString(R.string.acquisizione, currentSegment, totalSegments)
 
                         val currentData = ArrayList(acquiredData)
                         acquiredData.clear()
@@ -286,10 +310,13 @@ class MainActivity : AppCompatActivity() {
                             exporter.extractFeaturesToCsv(rawfile, featuresFile)
                         }
 
-                        if(currentSegment < totalSegments){
+                        if(currentSegment <= totalSegments){
                             segmentHandler.postDelayed(this, segmentDurationMs)
                         } else {
                             isAcquiring.value = false
+                            textAcquiring.text = getString(R.string.fine_acquisizione)
+                            textSensorData.visibility = View.GONE
+
                             textSensorData.text = getString(R.string.fine_acquisizione)
 
                             val dir = this@MainActivity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
@@ -364,15 +391,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun finalPrediction(predictedClasses: List<Int>): Int{
-        val predictedClasses = predictedClasses
+        val predictedClass = predictedClasses
             .groupingBy { it }
             .eachCount()
             .maxByOrNull { it.value }
             ?.key ?: -1
 
-        Toast.makeText(this, "Predicted classes: $predictedClasses", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "Predicted class: $predictedClass", Toast.LENGTH_LONG).show()
 
-        return predictedClasses
+        return predictedClass
     }
 
     private fun estimateBatteryPercentage(mv: UInt): Int {
@@ -402,6 +429,6 @@ class MainActivity : AppCompatActivity() {
                 return percent.toInt().coerceIn(0, 100)
             }
         }
-        return if (mv >= 4200u) 100 else 0
+        return if (mv >= 4200u) 120 else 0
     }
 }
