@@ -29,8 +29,18 @@ import mylibrary.mindrove.ServerManager
 import java.io.File
 import android.net.wifi.WifiManager
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.appcompat.app.AlertDialog
+
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.IOException
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+
 
 private const val LOCAL_PERMISSION_REQUEST_CODE = 100
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -70,7 +80,6 @@ class MainActivity : AppCompatActivity() {
 
     private val wifiSettingsLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            isWifiSettingsOpen = false
         }
 
     private val sensorDataText = MutableLiveData("No data yet")
@@ -78,20 +87,27 @@ class MainActivity : AppCompatActivity() {
     private val isAcquiring = MutableLiveData(false)
     private val showModelButtons = MutableLiveData(false)
     private val showEEGButton = MutableLiveData(true)
+    private val showBackHomeButton = MutableLiveData(false)
     private val totalSegments = 5
-    private var isWifiSettingsOpen = false
     private var selectedModelFile: String? = null
     private var model: TFLiteModel? = null
+    private var serverUrl = "http://192.168.4.3:8080/upload"
 
     private lateinit var textNetworkStatus: TextView
     private lateinit var textSensorData: TextView
     private lateinit var textAcquiring: TextView
     private lateinit var textBatteryStatus: TextView
+    private lateinit var textEegResult: TextView
+    private lateinit var textWaitingEdge: TextView
     private lateinit var logoImageView: ImageView
     private lateinit var galleryImageView: ImageView
     private lateinit var buttonStartEEG: Button
+    private lateinit var buttonBackHome: Button
     private lateinit var buttonUseSmallModel: Button
     private lateinit var buttonUseBigModel: Button
+    private lateinit var buttonUseSmallModelEdge: Button
+    private lateinit var buttonUseBigModelEdge: Button
+    private lateinit var layoutNetworkStatus: View
 
     private val imageList = listOf(
         R.drawable.image1,
@@ -105,6 +121,7 @@ class MainActivity : AppCompatActivity() {
     private var currentImageIndex = -1
     private var completeRound = -1
 
+    @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
         // TODO: Rimuovere questa riga in produzione
         // Imposta il tema chiaro a scopo di debug
@@ -123,11 +140,17 @@ class MainActivity : AppCompatActivity() {
         textSensorData = findViewById(R.id.textSensorData)
         textAcquiring = findViewById(R.id.textAcquiring)
         textBatteryStatus = findViewById(R.id.textBatteryStatus)
-        buttonStartEEG = findViewById(R.id.buttonStartEEG)
-        buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
-        buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
+        textEegResult = findViewById(R.id.textEegResult)
+        textWaitingEdge = findViewById(R.id.textWaitingEdge)
         galleryImageView = findViewById(R.id.galleryImageView)
         logoImageView = findViewById(R.id.logoImageView)
+        buttonStartEEG = findViewById(R.id.buttonStartEEG)
+        buttonBackHome = findViewById(R.id.buttonBackHome)
+        buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
+        buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
+        buttonUseSmallModelEdge = findViewById(R.id.buttonUseSmallModelEdge)
+        buttonUseBigModelEdge = findViewById(R.id.buttonUseBigModelEdge)
+        layoutNetworkStatus = findViewById(R.id.layoutNetworkStatus)
 
         val dir = this.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
 
@@ -149,7 +172,6 @@ class MainActivity : AppCompatActivity() {
                     networkStatus.value = "No network connection.\nPlease enable Wi-Fi."
                 } else {
                     networkStatus.value = "Connected to the network."
-                    isWifiSettingsOpen = false
                 }
                 handler.postDelayed(this, 3000)
             }
@@ -169,12 +191,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         showEEGButton.observe(this) { show ->
-            buttonStartEEG.visibility = if(show) View.VISIBLE else View.GONE
+            buttonStartEEG.visibility = if(show) View.VISIBLE else View.INVISIBLE
+            buttonStartEEG.isEnabled = show
+
+            layoutNetworkStatus.visibility = if(show) View.VISIBLE else View.INVISIBLE
+        }
+
+        showBackHomeButton.observe(this) { show ->
+            buttonBackHome.visibility = if (show) View.VISIBLE else View.INVISIBLE
+            buttonBackHome.isEnabled = show
         }
 
         showModelButtons.observe(this) { show ->
-            buttonUseSmallModel.visibility = if (show) View.VISIBLE else View.GONE
-            buttonUseBigModel.visibility = if (show) View.VISIBLE else View.GONE
+            buttonUseSmallModel.visibility = if (show) View.VISIBLE else View.INVISIBLE
+            buttonUseBigModel.visibility = if (show) View.VISIBLE else View.INVISIBLE
+            buttonUseSmallModelEdge.visibility = if (show) View.VISIBLE else View.INVISIBLE
+            buttonUseBigModelEdge.visibility = if (show) View.VISIBLE else View.INVISIBLE
         }
 
         checkAndRequestPermissions()
@@ -249,25 +281,35 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetTextI18n")
     private fun startServerManager() {
-        showEEGButton.value = true
         serverManager.start()
 
-        buttonStartEEG.setOnClickListener {
-            // Controllo che il dispositivo sia connesso al casco
-            if (!isConnectedToMindRove()) {
-                Toast.makeText(this, "Connect to the headset's Wi-Fi network to get started.", Toast.LENGTH_LONG).show()
+        buttonBackHome.setOnClickListener {
+            // Ricrea la schermata principale
+            buttonBackHome.visibility = View.INVISIBLE
+            textWaitingEdge.visibility = View.INVISIBLE
+            textEegResult.visibility = View.INVISIBLE
+            textAcquiring.visibility = View.INVISIBLE
+            textBatteryStatus.visibility = View.INVISIBLE
 
-                // Apro automaticamente le impostazione del WiFi
-                if (!isWifiSettingsOpen) {
-                    openWifiSettings()
-                    isWifiSettingsOpen = true
-                }
+            logoImageView.visibility = View.VISIBLE
+
+            buttonStartEEG.text = "Start EEG"
+//            buttonStartEEG.translationY = 0f
+            buttonStartEEG.animate().translationY(0f).setDuration(1000).start()
+            buttonBackHome.animate().translationY(0f).setDuration(1000).start()
+        }
+
+        buttonStartEEG.setOnClickListener {
+            // Controllo che il dispositivo sia connesso alla rete del Mindrove
+            if (!isConnectedToMindRove()) {
+                showWiFiConnectionDialog()
                 return@setOnClickListener
             }
 
             acquiredData.clear()
 
             buttonStartEEG.text = "Next Image"
+
             // Mostro stato della batteria del caschetto
             var batteryString = if(estimateBatteryPercentage(voltage) == 120) "Charging..." else "${estimateBatteryPercentage(voltage)} %"
             textBatteryStatus.text = getString(R.string.battery_status, batteryString)
@@ -279,21 +321,42 @@ class MainActivity : AppCompatActivity() {
             val segmentHandler = Handler(Looper.getMainLooper())
             val exporter = EEGDataProcessor(this)
 
-            showEEGButton.value = false
+            // Sposto verso il basso i bottoni "Start EEG" e "Home" (se "Start EEG" è al centro della schermata)
+            if (buttonStartEEG.translationY == 0f) {
+                buttonStartEEG.translationY = 0f
+                buttonBackHome.translationY = 0f
+                buttonStartEEG.animate().translationY(350f).setDuration(1000).start()
+                buttonBackHome.animate().translationY(350f).setDuration(1000).start()
+                buttonStartEEG.isEnabled = false
+                buttonBackHome.isEnabled = false
+                buttonStartEEG.postDelayed({
+                    showEEGButton.value = false
+                    showBackHomeButton.value = false
+                }, 1300)
+            } else {
+                showEEGButton.value = false
+                showBackHomeButton.value = false
+            }
 
-            logoImageView.visibility = View.GONE
+            // Nascondo alcuni elementi
+            logoImageView.visibility = View.INVISIBLE
+            layoutNetworkStatus.visibility = View.INVISIBLE
+            textEegResult.visibility = View.INVISIBLE
+
+            // Visualizzo altri elementi
             textSensorData.visibility = View.VISIBLE
-            textNetworkStatus.visibility = View.GONE
+            textAcquiring.visibility = View.VISIBLE
+            textBatteryStatus.visibility = View.VISIBLE
+            galleryImageView.visibility = View.VISIBLE
 
+            // Scelgo l'immagine da visualizzare
             currentImageIndex = if(currentImageIndex != -1) (currentImageIndex + 1) % imageList.size else 0
             if (currentImageIndex == 0) completeRound += 1
             galleryImageView.setImageResource(imageList[currentImageIndex])
 
             if (isAcquiring.value != true) {
                 isAcquiring.value = true
-                textAcquiring.visibility = View.VISIBLE
                 textAcquiring.text = getString(R.string.inizio_acquisizione, totalSegments)
-
 
                 val segmentRunnable = object : Runnable{
                     override fun run(){
@@ -315,10 +378,8 @@ class MainActivity : AppCompatActivity() {
                         } else {
                             isAcquiring.value = false
                             textAcquiring.text = getString(R.string.fine_acquisizione)
-                            textSensorData.visibility = View.GONE
 
-                            textSensorData.text = getString(R.string.fine_acquisizione)
-
+                            // Salvo i dati in un file CSV
                             val dir = this@MainActivity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
                             if (dir == null) {
                                 Toast.makeText(this@MainActivity, "Unable to access the save folder.", Toast.LENGTH_LONG).show()
@@ -326,40 +387,153 @@ class MainActivity : AppCompatActivity() {
                             }
                             val featuresFile = File(dir, "features_image_${currentImageIndex}.csv")
 
+                            Log.i("FILE", "File path: ${featuresFile.absolutePath}")
+                            Log.i("FILE", "dir: ${dir.absolutePath}")
+                            Log.i("FILE", "currentImageIndex: $currentImageIndex")
+
+                            // Nascondo alcuni elementi
+                            galleryImageView.visibility = View.INVISIBLE
+                            textSensorData.visibility = View.INVISIBLE
+
+                            // Visualizzo altri elementi
                             showModelButtons.value = true
 
+                            // Setto le funzioni da richiamare al click dei bottoni
                             buttonUseSmallModel.setOnClickListener {
                                 selectedModelFile = "Smallmodel100Neurons.tflite"
-                                val predizioni = initializeModel(featuresFile)
-                                val predictedClass = finalPrediction(predizioni)
-                                Log.i("Predizione", "Predicted class: $predictedClass")
+                                val predictions = initializeModel(featuresFile)
+                                finalPrediction(predictions)
 
                                 showModelButtons.value = false
+
+                                textEegResult.visibility = View.VISIBLE
                                 showEEGButton.value = true
-
-                                textSensorData.visibility = View.GONE
-                                textNetworkStatus.visibility = View.VISIBLE
+                                showBackHomeButton.value = true
                             }
-
                             buttonUseBigModel.setOnClickListener {
                                 selectedModelFile = "Bigmodel1000Neurons.tflite"
-                                val predizioni = initializeModel(featuresFile)
-                                val predictedClass = finalPrediction(predizioni)
-                                Log.i("Predizione", "Predicted class: $predictedClass")
+                                val predictions = initializeModel(featuresFile)
+                                finalPrediction(predictions)
 
                                 showModelButtons.value = false
-                                showEEGButton.value = true
 
-                                textSensorData.visibility = View.GONE
-                                textNetworkStatus.visibility = View.VISIBLE
+                                textEegResult.visibility = View.VISIBLE
+                                showEEGButton.value = true
+                                showBackHomeButton.value = true
+                            }
+
+                            // EDGE BUTTONS
+                            buttonUseSmallModelEdge.setOnClickListener {
+                                val featuresFile2 = File(dir, "features_image_${currentImageIndex}.csv")
+
+                                sendFileToServer("small", featuresFile2, serverUrl)
+
+                                showModelButtons.value = false
+
+                                textWaitingEdge.visibility = View.VISIBLE
+                            }
+                            buttonUseBigModelEdge.setOnClickListener {
+                                val featuresFile2 = File(dir, "features_image_${currentImageIndex}.csv")
+
+                                sendFileToServer("big", featuresFile2, serverUrl)
+
+                                showModelButtons.value = false
+
+                                textWaitingEdge.visibility = View.VISIBLE
                             }
                         }
                     }
                 }
                 segmentHandler.postDelayed(segmentRunnable, segmentDurationMs)
-
             }
         }
+    }
+
+    // REQUEST TO EDGE
+    private fun sendFileToServer(
+        modelSelected : String,
+        file: File,
+        serverUrl: String
+    ) {
+        if (!file.exists()) {
+            Log.e("FILE", "File not found: ${file.absolutePath}")
+        }
+
+        if (!file.isFile) {
+            Log.e("FILE", "Provided path is not a file: ${file.absolutePath}")
+        }
+
+        // Determine the MIME type (content type) of the file.
+        // For a CSV, it's typically "text/csv". You might want to
+        // use a utility function to determine MIME type based on file extension
+        // for more general file sending.
+        val mediaType = "text/csv".toMediaTypeOrNull()
+
+        // Create the request body from the file
+        val requestBody = file.asRequestBody(mediaType)
+
+        // Create the multipart request body (useful if your server expects a form-data upload)
+        val multipartBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("model", modelSelected)
+            .addFormDataPart(
+                "file", // The name of the form field on the server side (e.g., "file")
+                file.name, // Use the original file name
+                requestBody
+            )
+            .build()
+
+        // Create the HTTP POST request
+        val request = Request.Builder()
+            .url(serverUrl)
+            .post(multipartBody) // Use multipartBody for form-data upload
+            .build()
+
+        val client = OkHttpClient()
+
+        // Execute the request asynchronously
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.printStackTrace()
+                print("Network request failed: ${e.message}")
+                Toast.makeText(this@MainActivity, "Network request failed: ${e.message}", Toast.LENGTH_LONG).show()
+
+                textWaitingEdge.visibility = View.INVISIBLE
+                textEegResult.visibility = View.INVISIBLE
+
+                showEEGButton.value = true
+                showBackHomeButton.value = true
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                response.use {
+                    textWaitingEdge.visibility = View.INVISIBLE
+
+                    if (response.isSuccessful) {
+                        // Handle successful response
+                        val responseBody = response.body?.string()
+                        val gson = Gson()
+                        val bodyJson = gson.fromJson<Map<String, Any>>(responseBody, object : TypeToken<Map<String, Any>>() {}.type)
+                        val ret = bodyJson["result"]
+                        print( "File uploaded successfully. Server response: $ret")
+                        Log.d("TypeInfo", "Il tipo di ret è: ${ret!!::class}")
+//                        edgePrediction = ret.toInt()
+
+                        // Stampo i risultati a video
+                        textEegResult.text = buildString { append("Predicted class: ").append(ret) }
+                        textEegResult.visibility = View.VISIBLE
+                    } else {
+                        // Handle unsuccessful response
+                        val errorBody = response.body?.string()
+                        print("File upload failed. Server code: ${response.code}, Error: $errorBody")
+                        Toast.makeText(this@MainActivity, "File upload failed. Server code: ${response.code}, Error: $errorBody", Toast.LENGTH_LONG).show()
+                    }
+
+                    showEEGButton.value = true
+                    showBackHomeButton.value = true
+                }
+            }
+        })
     }
 
     private fun initializeModel(fileName: File): List<Int> {
@@ -390,16 +564,15 @@ class MainActivity : AppCompatActivity() {
         return predictedClasses
     }
 
-    private fun finalPrediction(predictedClasses: List<Int>): Int{
+    private fun finalPrediction(predictedClasses: List<Int>) {
         val predictedClass = predictedClasses
             .groupingBy { it }
             .eachCount()
             .maxByOrNull { it.value }
             ?.key ?: -1
 
-        Toast.makeText(this, "Predicted class: $predictedClass", Toast.LENGTH_LONG).show()
-
-        return predictedClass
+        Log.i("Prediction", "Predicted class: $predictedClass")
+        textEegResult.text = buildString { append("Predicted class: ").append(predictedClass) }
     }
 
     private fun estimateBatteryPercentage(mv: UInt): Int {
@@ -430,5 +603,30 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return if (mv >= 4200u) 120 else 0
+    }
+
+
+    ///////////////// DIALOGS /////////////////
+    /// Dialog per la connessione alla rete WiFi del casco ///
+    private fun showWiFiConnectionDialog() {
+        val builder = AlertDialog.Builder(this) // "this" si riferisce al contesto dell'Activity
+
+        builder.setTitle("Connect to Mindrove")
+        builder.setMessage("Before starting EEG data receiving, you must connect your device to Mindrove WiFi network.")
+
+        // Pulsante POSITIVO
+        builder.setPositiveButton("Open WiFi settings") { dialog, which ->
+            openWifiSettings()
+            dialog.dismiss()
+        }
+
+        // Pulsante NEGATIVO
+        builder.setNegativeButton("Cancel") { dialog, which ->
+            dialog.dismiss()
+        }
+
+        // Creo l'alert e lo mostro a schermo
+        val alertDialog: AlertDialog = builder.create()
+        alertDialog.show()
     }
 }

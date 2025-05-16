@@ -1,26 +1,59 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.NeuroVibe" parent="Theme.Material3.Light">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
+
+
+    <!-- GENERAL -->
+    <style name="Theme.NeuroVibe" parent="Theme.Material3.Light.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/neurovibe.purple</item>
+        <item name="colorPrimaryVariant">@color/neurovibe.purple.variant.lighter</item>
         <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_700</item>
+
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/neurovibe.teal</item>
+        <item name="colorSecondaryVariant">@color/neurovibe.teal.variant.lighter</item>
         <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
+
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+
+        <!-- Remove action bar shadow (for older API levels) -->
         <item name="android:windowContentOverlay">@null</item>
-    </style>
 
-    <style name="Theme.NeuroVibe.NoActionBar">
-        <item name="windowActionBar">false</item>
+        <!-- Remove the title bar -->
         <item name="windowNoTitle">true</item>
+
+        <!-- Set the alert dialog theme -->
+        <item name="alertDialogTheme">@style/Theme.NeuroVibe.Dialog</item>
     </style>
 
-    <style name="Theme.NeuroVibe.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
 
-    <style name="Theme.NeuroVibe.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
+    <!--  BUTTONS  -->
+    <style name="Theme.NeuroVibe.Button" parent="Widget.Material3.Button">
+        <!-- Voglio che tutti i bottoni abbiano un'ombreggiatura verso il basso -->
+    </style>
+
+
+    <!--  DIALOGS  -->
+    <style name="Theme.NeuroVibe.Dialog" parent="Theme.Material3.Light.Dialog.Alert">
+        <!-- Set the main text color -->
+        <item name="android:textColorPrimary">@color/dialog.message.text.color</item>
+
+        <!-- Set the styles for the dialog buttons -->
+        <item name="buttonBarPositiveButtonStyle">@style/Theme.NeuroVibe.Dialog.Button.Positive</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Theme.NeuroVibe.Dialog.Button.Negative</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Theme.NeuroVibe.Dialog.Button.Neutral</item>
+    </style>
+
+    <style name="Theme.NeuroVibe.Dialog.Button.Positive" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/neurovibe.purple</item>
+    </style>
+
+    <style name="Theme.NeuroVibe.Dialog.Button.Negative" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/neurovibe.purple.variant.lighter</item>
+    </style>
+
+    <style name="Theme.NeuroVibe.Dialog.Button.Neutral" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/neurovibe.purple</item>
+    </style>
+
 </resources>
