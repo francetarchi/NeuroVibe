@@ -5,19 +5,15 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
-import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
@@ -25,14 +21,41 @@ import com.found404.neurovibe.data.EEGDataProcessor
 import com.found404.neurovibe.ml.TFLiteModel
 import mylibrary.mindrove.SensorData
 import mylibrary.mindrove.ServerManager
-import java.io.File
 import android.net.wifi.WifiManager
 import androidx.appcompat.app.AppCompatDelegate
+import android.os.Bundle
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.navigation.findNavController
+import androidx.navigation.ui.AppBarConfiguration
+import androidx.navigation.ui.setupActionBarWithNavController
+import androidx.navigation.ui.setupWithNavController
+
+import android.os.Build
+import android.provider.MediaStore.Downloads
+import android.view.View
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+
+
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.asRequestBody
+import kotlin.text.append
+import android.content.Context
+import android.os.Environment
+import java.io.File
+import java.io.FileOutputStream
+import java.io.FileWriter
+import java.io.IOException
+import java.io.OutputStreamWriter
+
 
 private const val LOCAL_PERMISSION_REQUEST_CODE = 100
 
 class MainActivity : AppCompatActivity() {
 
+    private var predictedClass: String = "0"
     private val acquiredData = mutableListOf<SensorData>()
     private lateinit var handler: Handler
     private lateinit var runnable: Runnable
@@ -81,6 +104,7 @@ class MainActivity : AppCompatActivity() {
     private var isWifiSettingsOpen = false
     private var selectedModelFile: String? = null
     private var model: TFLiteModel? = null
+    private var serverUrl = "http://192.168.4.3:8080/upload"
 
     private lateinit var textNetworkStatus: TextView
     private lateinit var textSensorData: TextView
@@ -90,6 +114,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonStartEEG: Button
     private lateinit var buttonUseSmallModel: Button
     private lateinit var buttonUseBigModel: Button
+
+    private lateinit var buttonUseSmallModelEdge: Button
+    private lateinit var buttonUseBigModelEdge: Button
+
 
     private val imageList = listOf(
         R.drawable.image1,
@@ -118,6 +146,9 @@ class MainActivity : AppCompatActivity() {
         buttonStartEEG = findViewById(R.id.buttonStartEEG)
         buttonUseSmallModel = findViewById(R.id.buttonUseSmallModel)
         buttonUseBigModel = findViewById(R.id.buttonUseBigModel)
+
+        buttonUseSmallModelEdge = findViewById(R.id.buttonUseSmallModelEdge)
+        buttonUseBigModelEdge = findViewById(R.id.buttonUseBigModelEdge)
 
         imageView = findViewById(R.id.imageView)
 
@@ -171,6 +202,8 @@ class MainActivity : AppCompatActivity() {
         showModelButtons.observe(this) { show ->
             buttonUseSmallModel.visibility = if (show) View.VISIBLE else View.GONE
             buttonUseBigModel.visibility = if (show) View.VISIBLE else View.GONE
+            buttonUseSmallModelEdge.visibility = if (show) View.VISIBLE else View.GONE
+            buttonUseBigModelEdge.visibility = if (show) View.VISIBLE else View.GONE
         }
 
         checkAndRequestPermissions()
@@ -330,6 +363,41 @@ class MainActivity : AppCompatActivity() {
                                 showEEGButton.value = true
                                 showModelButtons.value = false
                             }
+
+                            buttonUseBigModelEdge.setOnClickListener {
+                                //selectedModelFile = "Bigmodel1000Neurons.tflite"
+                                //val predizioni = initializeModel(featuresFile)
+
+                                val featuresFile2 = File(dir, "features_image_${currentImageIndex}.csv")
+
+                                predictedClass = sendFileToServer(
+                                    "big",
+                                    featuresFile2,
+                                    serverUrl
+
+                                )
+                                println(predictedClass)
+                                Log.i("Predizione", "Predicted class: $predictedClass")
+
+
+                                showEEGButton.value = true
+                                showModelButtons.value = false
+                            }
+
+                            buttonUseSmallModelEdge.setOnClickListener {
+                                val featuresFile2 = File(dir, "features_image_${currentImageIndex}.csv")
+
+                                predictedClass = sendFileToServer(
+                                    "small",
+                                    featuresFile2,
+                                    serverUrl
+                                )
+                                Log.i("Predizione", "Predicted class: $predictedClass")
+
+                                showEEGButton.value = true
+                                showModelButtons.value = false
+                            }
+
                         }
                     }
                 }
@@ -408,4 +476,73 @@ class MainActivity : AppCompatActivity() {
         }
         return if (mv >= 4200u) 120 else 0
     }
+    fun sendFileToServer(
+        model_selected : String,
+        file: File,
+        serverUrl: String
+    ) : String {
+        if (!file.exists()) {
+            return ("File not found: ${file.absolutePath}")
+        }
+
+        if (!file.isFile) {
+            return ("Provided path is not a file: ${file.absolutePath}")
+        }
+
+        // Determine the MIME type (content type) of the file.
+        // For a CSV, it's typically "text/csv". You might want to
+        // use a utility function to determine MIME type based on file extension
+        // for more general file sending.
+        val mediaType = "text/csv".toMediaTypeOrNull()
+
+        // Create the request body from the file
+        val requestBody = file.asRequestBody(mediaType)
+
+        // Create the multipart request body (useful if your server expects a form-data upload)
+        val multipartBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("model", model_selected)
+            .addFormDataPart(
+                "file", // The name of the form field on the server side (e.g., "file")
+                file.name, // Use the original file name
+                requestBody
+            )
+            .build()
+
+        // Create the HTTP POST request
+        val request = Request.Builder()
+            .url(serverUrl)
+            .post(multipartBody) // Use multipartBody for form-data upload
+            .build()
+
+        val client = OkHttpClient()
+
+        // Execute the request asynchronously
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.printStackTrace()
+                print( "Network request failed: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                response.use {
+                    if (response.isSuccessful) {
+                        // Handle successful response
+                        val responseBody = response.body?.string()
+                        val gson = Gson()
+                        val body_json = gson.fromJson<Map<String, Any>>(responseBody, object : TypeToken<Map<String, Any>>() {}.type)
+                        val ret = body_json["result"]
+                        print( "File uploaded successfully. Server response: $ret")
+                        predictedClass = ret.toString()
+                    } else {
+                        // Handle unsuccessful response
+                        val errorBody = response.body?.string()
+                        print("File upload failed. Server code: ${response.code}, Error: $errorBody")
+                    }
+                }
+            }
+        })
+        return predictedClass
+        }
 }
+

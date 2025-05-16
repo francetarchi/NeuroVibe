@@ -62,6 +62,18 @@
             android:layout_height="60dp"
             android:text="@string/usa_small_model" />
 
+        <Button
+            android:id="@+id/buttonUseBigModelEdge"
+            android:layout_width="wrap_content"
+            android:layout_height="60dp"
+            tools:text="USE BIG MODEL EDGE" />
+
+        <Button
+            android:id="@+id/buttonUseSmallModelEdge"
+            android:layout_width="wrap_content"
+            android:layout_height="60dp"
+            tools:text="USE SMALL MODEL EDGE" />
+
         <Space
             android:layout_width="0dp"
             android:layout_height="16dp" />
