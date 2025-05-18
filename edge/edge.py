@@ -10,7 +10,7 @@ TARGET_COLUMN_NAME = None
 TFLITE_BIG_MODEL_PATH = "./edge/models/Bigmodel1000Neurons.tflite"
 TFLITE_SMALL_MODEL_PATH = "./edge/models/Smallmodel100Neurons.tflite"
 
-CSV_FILE_PATH = "./edge/uploads/input.csv"
+CSV_FILE_PATH = "./edge/uploads"
 
 if not os.path.exists(TFLITE_BIG_MODEL_PATH):
     print("Big model non trovato.")
@@ -21,8 +21,7 @@ if not os.path.exists(TFLITE_SMALL_MODEL_PATH):
     exit()
 
 if not os.path.exists(CSV_FILE_PATH):
-    print("File CSV non trovato.")
-    exit()
+    os.makedirs(CSV_FILE_PATH)
 
 
 def load_tflite_model(model_path):
@@ -207,12 +206,12 @@ def inference(model_path, csv_path):
 
 app = Flask(__name__)
 
-# Configure the upload folder (create it if it doesn't exist)
-UPLOAD_FOLDER = 'uploads'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+# # Configure the upload folder (create it if it doesn't exist)
+# UPLOAD_FOLDER = 'uploads'
+# if not os.path.exists(UPLOAD_FOLDER):
+#     os.makedirs(UPLOAD_FOLDER)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.route('/upload', methods=['POST'])
 def upload_csv():
@@ -240,7 +239,7 @@ def upload_csv():
 
         # Securely save the file
         filename = file.filename
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        filepath = os.path.join(app.config['CSV_FILE_PATH'], filename)
         try:
             file.save(filepath)
 
