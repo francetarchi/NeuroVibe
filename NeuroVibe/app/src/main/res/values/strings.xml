@@ -40,6 +40,6 @@
     <string name="iconHappyMango">Happy mango icon</string>
     <string name="iconSadMango">Sad mango icon</string>
 
-    <string name="painting_liked">Great!\\nLast painting was fire for you.</string>
-    <string name="painting_disliked">Ouch!\\nSeems you didn\'t like last painting.</string>
+    <string name="painting_liked">Great!\nLast painting was fire for you.</string>
+    <string name="painting_disliked">Ouch!\nSeems you didn\'t like last painting.</string>
 </resources>

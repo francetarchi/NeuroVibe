@@ -295,7 +295,13 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    private fun showEegResults(predictedClass: Int) {
+    private fun showEegResults(predictedClass: Int?) {
+        // Controllo che il risultato sia valido
+        if (predictedClass == null || predictedClass < 0 || predictedClass > 1) {
+            Log.e("PREDICTION", "Predicted class has an invalid value: $predictedClass.")
+            handleInvalidPredictionError(predictedClass)
+        }
+
         // Scelgo l'icona e il testo da visualizzare
         if (predictedClass == 0) {
             // Classe 0 ==> Opera non gradita
@@ -314,8 +320,9 @@ class MainActivity : AppCompatActivity() {
 
         // Aggiorno correttamente gli elementi visualizzati sulla schermata
         showModelButtons.value = false
-
         layoutEegResult.visibility = View.VISIBLE
+        buttonStartEEG.translationY = 325f
+        buttonBackHome.translationY = 325f
         showEEGButton.value = true
         showBackHomeButton.value = true
     }
@@ -535,28 +542,34 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onResponse(call: Call, response: Response) {
                     Log.i("EDGESERVER", "Network request successful")
+                    runOnUiThread { layoutWaitingEdge.visibility = View.INVISIBLE }
 
-                    runOnUiThread {
-                        response.use {
-                            layoutWaitingEdge.visibility = View.INVISIBLE
+                    response.use {
+                        if (response.isSuccessful) {
+                            Log.i("EDGESERVER", "File uploaded successfully.")
 
-                            if (response.isSuccessful) {
-                                // Handle successful response
-                                val responseBody = response.body?.string()
-                                val gson = Gson()
-                                val bodyJson = gson.fromJson<Map<String, Any>>(responseBody, object : TypeToken<Map<String, Any>>() {}.type)
-                                val ret = bodyJson["result"]
-                                Log.i("EDGESERVER", "File uploaded successfully. Server response: $ret")
-                                Log.d("TypeInfo", "Il tipo di ret è: ${ret!!::class}")
+                            // Handle successful response
+                            val responseBody = response.body?.string()
+                            val gson = Gson()
+                            val bodyJson = gson.fromJson<Map<String, Any>>(responseBody, object : TypeToken<Map<String, Any>>() {}.type)
 
-                                // TODO: Modificare il modo in cui viene passato un intero
-                                showEegResults(ret.toString().toInt())
-                            } else {
-                                // Handle unsuccessful response
-                                val errorBody = response.body?.string()
-                                Log.i("EDGESERVER", "File upload failed. Server code: ${response.code}, Error: $errorBody")
-                                handleEdgeConnectionError("File upload failed. Server code: ${response.code}, Error: $errorBody")
-                            }
+                            // Tentativo di cast a Double (safe cast: se non riesce, ret sarà null)
+                            // Questo passaggio serve perché il valore viene preso dal body automaticamente come java.lang.Double.
+                            val ret = bodyJson["result"] as? Double
+
+                            // Converto a Int se il cast a Double è riuscito (altrimenti retInt sarà null)
+                            val retInt: Int? = ret?.toInt()
+
+                            Log.i("EDGESERVER", "Server response: $retInt")
+
+                            runOnUiThread { showEegResults(retInt) }
+                        } else {
+                            // Handle unsuccessful response
+                            val errorBody = response.body?.string()
+
+                            Log.i("EDGESERVER", "File upload failed. Server code: ${response.code}, Error: $errorBody")
+
+                            runOnUiThread { handleEdgeConnectionError("File upload failed. Server code: ${response.code}, Error: $errorBody") }
                         }
                     }
                 }
@@ -564,7 +577,7 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun handleEdgeConnectionError(errMsg: String) {
+    private fun interfaceToHomeWithError() {
         layoutWaitingEdge.visibility = View.INVISIBLE
         layoutEegResult.visibility = View.INVISIBLE
 
@@ -572,8 +585,16 @@ class MainActivity : AppCompatActivity() {
         buttonBackHome.translationY = 0f
         showEEGButton.value = true
         showBackHomeButton.value = true
+    }
 
+    private fun handleEdgeConnectionError(errMsg: String) {
+        interfaceToHomeWithError()
         showEdgeConnectionErrorDialog(errMsg)
+    }
+
+    private fun handleInvalidPredictionError(prediction: Int?) {
+        interfaceToHomeWithError()
+        showInvalidPredictionErrorDialog(prediction)
     }
 
     private fun initializeModel(fileName: File): List<Int> {
@@ -589,16 +610,16 @@ class MainActivity : AppCompatActivity() {
                         output?.let {
                             val predictedClass = it.indices.maxByOrNull { idx -> it[idx] } ?: -1
                             predictedClasses.add(predictedClass)
-                            Log.d("PREDIZIONE", "Row $i → Class $predictedClass → Output: ${it.joinToString()}")
+                            Log.d("PREDICTION", "Row $i → Class $predictedClass → Output: ${it.joinToString()}")
                         }
                     } else {
-                        Log.e("PREDIZIONE", "Errore nel caricamento dei dati di input alla riga $i")
+                        Log.e("PREDICTION", "Error loading input data at row $i")
                         Toast.makeText(this, "Error at row $i", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(this, "Error in model initialization.", Toast.LENGTH_LONG).show()
+                Log.e("MODEL", "Error in model initialization: ${e.message}")
+                Toast.makeText(this, "Error in model initialization. ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
         return predictedClasses
@@ -678,7 +699,24 @@ class MainActivity : AppCompatActivity() {
         builder.setMessage("There was an error connecting to the edge server.\n$errMsg")
 
         // Pulsante POSITIVO
-        builder.setPositiveButton("OK") { dialog, which ->
+        builder.setPositiveButton("Ok") { dialog, which ->
+            dialog.dismiss()
+        }
+
+        // Creo l'alert e lo mostro a schermo
+        val alertDialog: AlertDialog = builder.create()
+        alertDialog.show()
+    }
+
+    /// Dialog per gestire un valore non valido della classe predetta ///
+    private fun showInvalidPredictionErrorDialog(prediction: Int?) {
+        val builder = AlertDialog.Builder(this)
+
+        builder.setTitle("Invalid prediction")
+        builder.setMessage("Predicted class has an invalid value: $prediction.")
+
+        // Pulsante POSITIVO
+        builder.setPositiveButton("Ok") { dialog, which ->
             dialog.dismiss()
         }
 
