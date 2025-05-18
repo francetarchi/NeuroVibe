@@ -10,21 +10,36 @@
     <string name="menu_home">Home</string>
     <string name="menu_gallery">Gallery</string>
     <string name="menu_slideshow">Slideshow</string>
-    <string name="use_small_model">Use Small Model</string>
-    <string name="use_big_model">Use Big Model</string>
-    <string name="use_small_model_edge">Use Big Model Edge</string>
-    <string name="use_big_model_edge">Use Big Model Edge</string>
-    <string name="network_status">Network Status…</string>
-    <string name="start_eeg">Start EEG</string>
+
+    <string name="neurovibe_logo">NeuroVibe logo</string>
 
     <string name="inizio_acquisizione">Acquiring EEG… (1/%1$d)</string>
     <string name="acquisizione">Acquiring EEG… (%1$d/%2$d)</string>
     <string name="fine_acquisizione">EEG acquisition complete.</string>
-    <string name="neurovibe">NeuroVibe logo</string>
-    <string name="gallery">Gallery</string>
-    <string name="battery_status">Battery percentage: %1$s</string>
-    <string name="next_image">Next Image</string>
-    <string name="infoIcon">Info icon</string>
+    <string name="battery_status">Mindrove battery: %1$s</string>
+    <string name="network_status">Network Status…</string>
     <string name="waiting_for_edge_server_response">Waiting for edge server response…</string>
+
+    <string name="gallery">Gallery</string>
+
+    <string name="start_eeg">Start EEG</string>
+    <string name="next_image">Next Image</string>
+
     <string name="home">Home</string>
+
+    <string name="use_small_model">Use Small Model</string>
+    <string name="use_big_model">Use Big Model</string>
+    <string name="use_small_model_edge">Use Small Model Edge</string>
+    <string name="use_big_model_edge">Use Big Model Edge</string>
+
+    <string name="iconInfo">Info icon</string>
+    <string name="iconBatteryStatus">Battery status icon</string>
+    <string name="iconDataAcquiring">Data acquiring icon</string>
+    <string name="iconNetworkStatus">Network status icon</string>
+    <string name="iconWaitingEdge">Waiting for edge icon</string>
+    <string name="iconHappyMango">Happy mango icon</string>
+    <string name="iconSadMango">Sad mango icon</string>
+
+    <string name="painting_liked">Great!\\nLast painting was fire for you.</string>
+    <string name="painting_disliked">Ouch!\\nSeems you didn\'t like last painting.</string>
 </resources>
