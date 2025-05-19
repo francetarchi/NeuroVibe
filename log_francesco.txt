@@ -1,0 +1,59 @@
+--- LOG FRANCESCO TARCHI ---
+
+
+-- Numero di commit eseguiti: 8
+
+
+-- Cose fatte:
+**INTERFACCIA**
+- Realizzata l'interfaccia dell'applicazione nella sua totalità.
+- Realizzati gli stili utilizzati negli elementi dell'applicazione.
+- Realizzato il supporto al tema scuro.
+- Realizzati gli elementi "Layout..." che fungono da contenitori di altri elementi per raggrupparli.
+- Realizzato il flusso dell'applicazione (elementi resi visibili/invisibili per dirigere in maniera corretta le azioni dell'utente).
+- Aggiunte all'interfaccia un'icona per ogni testo informativo.
+- Modificato il codice della MainActivity.kt per supportare il design e il flusso dell'app.
+- Sostituiti i Toast con dei dialog, in modo da bloccare l'utilizzo dell'app finché l'utente non legge il messaggio e fornisce una risposta.
+
+**EDGE SERVER**
+- Tolta la dequantizzazione dell'output dal server edge: non serve, il modello ritorna già i dati come float.
+- Risolto un problema di lettura dei dati inviati dai client nelle richieste HTTP: adesso l'edge server legge solamente le ultime 5 righe del file (cioè i chunk di dati dell'ultima registrazione).
+- Aggiunto un controllo sulla validità del numero di classe predetta (non null, 0 o 1), con annesso dialog che spiega il problema e permette di tornare alla home dell'app.
+- Modificato il codice dell'edge server per permettere il supporto alla scelta del modello da utilizzare
+- Modificato il codice dell'edge server per fare in modo che mandi in input al modello il file.csv ricevuto in ogni richiesta HTTP.
+- Importato il codice dell'edge server e corretti i percorsi relativi dei modelli che utilizza e della directory in cui vengono memorizzati i file.csv dei dati di input.
+
+**CODICE KOTLIN**
+- Corretti diversi problemi nelle funzioni di callback che vengono eseguite quando arrivano le risposte dell'edge server: alcune istruzioni devono essere forzatamente eseguite sul main thread dell'app, altrimenti l'app crasha.
+- Risolto un problema nella ricezione della classe predetta dall'edge server: tale dato arriva come kotlin:Any? e viene automaticamente interpretato come Double? (un diretto cast a Int causerebbe un errore, quindi il dato viene passato prima a Double con un safe cast e successivamente a Int?).
+- Riorganizzato il codice della startServerManager() per migliorare la leggibilità del codice.
+- Ogni .setOnClickListener() è separato (prima erano annidati).
+- Il codice di acquisizione dei dati EEG è stato spostato in una nuova funzione acquireData().
+- Le istruzioni che modificano la visibilità degli elementi sono state spostate in apposite funzioni "interfaceTo...()", ognuna delle quali porta l'applicazione ad una schermata precisa.
+
+**DOCUMENTAZIONE**
+- Realizzato il requirements.txt per le librerie Python del server edge.
+- Realizzati i file README.md: uno esterno nella directory root per descrivere il funzionamento di tutto il progetto e uno interno al path "./edge/README.md" per per descrivere il funzionamento del solo edge server.
+
+
+-- Codice scritto
+- activity_main.xml
+- values/themes.xml
+- values-night/themes.xml
+- colors.xml
+- (parte di) strings.xml
+- (parte di) MainActivity.kt
+- (parte di) build.gradle.kts
+- (parte di) AndroidManifest.xml
+- README.md
+- edge/README.md
+- edge/requirements.txt
+- (parte di) edge/edge.py
+- "drawable/" e (parte del) suo contenuto (immagini)
+- "drawable-night/" e (parte del) suo contenuto (immagini)
+
+
+-- Attività extra
+- Mi sono occupato di riuscire a far comunicare la nostra app con il MindRove utilizzando le librerie negli sdk (mindRove-release_v3_0_1.aar) più aggiornati nelle fasi iniziali del progetto.
+- Mi sono occupato della raccolta dei segnali EEG, svolgendo sessioni pratiche con il dispositivo MindRove per ottenere dati reali su cui poter testare l'app e verificare il consumo energetico in locale.
+- Mi sono occupato di curare il design della presentazione.
