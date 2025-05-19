@@ -41,10 +41,9 @@ android {
 dependencies {
     implementation(files("libs/mindRove-release_v2_0.aar"))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
-    // ----------
+
     implementation(libs.commons.math3)
     implementation(libs.tensorflow.lite)
-    // ----------
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -54,7 +53,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
+    implementation(libs.okhttp)
+    implementation(libs.gson)
 }

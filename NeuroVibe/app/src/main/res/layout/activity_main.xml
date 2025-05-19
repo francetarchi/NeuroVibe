@@ -1,97 +1,385 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+
+<androidx.drawerlayout.widget.DrawerLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+
     android:id="@+id/drawer_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fitsSystemWindows="true"
-    tools:openDrawer="start">
-    <LinearLayout
+    android:fitsSystemWindows="true" >
+
+
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/mainLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/textNetworkStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/network_status"
-            android:textSize="16sp"
-            android:paddingBottom="16dp"/>
 
+        <!-- TextViews without icons -->
         <TextView
             android:id="@+id/textSensorData"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="@string/sensor_data"
-            android:visibility="visible"
-            android:textSize="14sp"
-            android:paddingBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/textAcquiring"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:gravity="top|center"
+            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+            android:textColor="@color/neurovibe.gray"
+            android:textSize="15sp"
             android:visibility="gone"
-            android:textSize="14sp"
-            android:paddingBottom="16dp"/>
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.919" />
 
-        <TextView
-            android:id="@+id/textBatteryStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            android:textSize="14sp"
-            android:paddingBottom="16dp"/>
 
+        <!-- Button to start EEG acquisition -->
         <Button
             android:id="@+id/buttonStartEEG"
+            style="@style/Theme.NeuroVibe.Button"
+            android:layout_width="180dp"
+            android:layout_height="90dp"
+            android:fontFamily="sans-serif-medium"
+            android:text="@string/start_eeg"
+            android:textSize="23sp"
+            android:textStyle="bold"
+            android:visibility="visible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.497"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.499"
+            tools:ignore="TextContrastCheck,VisualLintOverlap" />
+
+
+        <!-- Button to go back home -->
+        <Button
+            android:id="@+id/buttonBackHome"
+            style="@style/Widget.Material3.Button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/start_eeg" />
+            android:backgroundTint="@color/neurovibe.gray"
+            android:fontFamily="sans-serif-medium"
+            android:text="@string/home"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:visibility="invisible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/buttonStartEEG"
+            app:layout_constraintVertical_bias="0.033"
+            tools:ignore="TextContrastCheck" />
 
-        <Space
-            android:layout_width="0dp"
-            android:layout_height="16dp" />
 
+        <!-- Buttons for model calls -->
         <Button
             android:id="@+id/buttonUseSmallModel"
+            style="@style/Widget.Material3.Button"
             android:layout_width="200dp"
             android:layout_height="60dp"
-            android:text="@string/usa_small_model" />
-
-        <Space
-            android:layout_width="0dp"
-            android:layout_height="16dp" />
+            android:text="@string/use_small_model"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="invisible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.497"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.309" />
 
         <Button
             android:id="@+id/buttonUseBigModel"
+            style="@style/Widget.Material3.Button"
             android:layout_width="200dp"
             android:layout_height="60dp"
-            android:text="@string/usa_big_model" />
+            android:text="@string/use_big_model"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="invisible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.497"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/buttonUseSmallModel"
+            app:layout_constraintVertical_bias="0.054" />
 
+        <Button
+            android:id="@+id/buttonUseSmallModelEdge"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="200dp"
+            android:layout_height="60dp"
+            android:text="@string/use_small_model_edge"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="invisible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.497"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/buttonUseBigModel"
+            app:layout_constraintVertical_bias="0.178" />
+
+        <Button
+            android:id="@+id/buttonUseBigModelEdge"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="200dp"
+            android:layout_height="60dp"
+            android:text="@string/use_big_model_edge"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="invisible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.497"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/buttonUseSmallModelEdge"
+            app:layout_constraintVertical_bias="0.117" />
+
+
+        <!-- ImageView that shows the NeuroVibe logo -->
         <ImageView
-            android:id="@+id/imageView"
+            android:id="@+id/logoImageView"
+            android:layout_width="200dp"
+            android:layout_height="200dp"
+            android:contentDescription="@string/neurovibe_logo"
+            android:src="@drawable/logo_neurovibe"
+            android:visibility="visible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.497"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.096" />
+
+
+        <!-- ImageView that shows (one at time) gallery images -->
+        <ImageView
+            android:id="@+id/galleryImageView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:contentDescription="@string/gallery"
             android:scaleType="fitCenter"
-            android:visibility="visible" />
+            android:visibility="visible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    </LinearLayout>
 
-    <com.google.android.material.navigation.NavigationView
-        android:id="@+id/nav_view"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_gravity="start"
-        android:fitsSystemWindows="true"
-        app:headerLayout="@layout/nav_header_main"
-        app:menu="@menu/activity_main_drawer" >
+        <!-- CONTAINERS FOR TEXTVIEWS AND RELATIVE ICONS -->
+        <!-- Container for EEG data acquiring status -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:id="@+id/layoutDataAcquiring"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="invisible"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintHorizontal_bias="0.498"
+            app:layout_constraintVertical_bias="0.03" >
 
-        <RadioGroup
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-    </com.google.android.material.navigation.NavigationView>
+            <ImageView
+                android:id="@+id/iconDataAcquiring"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="5dp"
+                android:layout_marginEnd="15dp"
+                android:contentDescription="@string/iconDataAcquiring"
+                android:src="@drawable/icon_data_acquiring"
+                android:visibility="visible"
+                tools:ignore="ImageContrastCheck" />
+
+            <TextView
+                android:id="@+id/textDataAcquiring"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:gravity="center"
+                android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                android:textColor="@color/neurovibe.gray"
+                android:textSize="15sp"
+                android:visibility="visible"
+                tools:ignore="TextContrastCheck" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+
+        <!-- Container for Mindrove battery status -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:id="@+id/layoutBatteryStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="invisible"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.498"
+            app:layout_constraintVertical_bias="0.089" >
+
+            <ImageView
+                android:id="@+id/iconBatteryStatus"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="5dp"
+                android:layout_marginEnd="15dp"
+                android:contentDescription="@string/iconBatteryStatus"
+                android:src="@drawable/icon_battery_status"
+                android:visibility="visible"
+                tools:ignore="ImageContrastCheck" />
+
+            <TextView
+                android:id="@+id/textBatteryStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:gravity="center"
+                android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                android:textColor="@color/neurovibe.gray"
+                android:textSize="15sp"
+                android:visibility="visible"
+                tools:ignore="TextContrastCheck" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+
+        <!-- Container for network status -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:id="@+id/layoutNetworkStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintVertical_bias="0.925" >
+
+            <ImageView
+                android:id="@+id/iconNetworkStatus"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="15dp"
+                android:accessibilityPaneTitle="Connection info are displayed here"
+                android:contentDescription="@string/iconNetworkStatus"
+                android:src="@drawable/icon_network_status"
+                android:visibility="visible"
+                tools:ignore="ImageContrastCheck" />
+
+            <TextView
+                android:id="@+id/textNetworkStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:gravity="center"
+                android:text="@string/network_status"
+                android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                android:textColor="@color/neurovibe.gray"
+                android:textSize="15sp"
+                android:visibility="visible"
+                tools:ignore="TextContrastCheck" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+
+        <!-- Container for waiting edge -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:id="@+id/layoutWaitingEdge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:visibility="invisible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" >
+
+            <ImageView
+                android:id="@+id/iconWaitingEdge"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:layout_marginBottom="20dp"
+                android:contentDescription="@string/iconWaitingEdge"
+                android:src="@drawable/icon_waiting_edge"
+                android:visibility="visible"
+                tools:ignore="ImageContrastCheck" />
+
+            <TextView
+                android:id="@+id/textWaitingEdge"
+                android:layout_width="300dp"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/waiting_for_edge_server_response"
+                android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+                android:textColor="@color/neurovibe.gray"
+                android:textSize="25sp"
+                android:textStyle="bold"
+                android:visibility="visible"
+                tools:ignore="TextContrastCheck" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+
+        <!-- Container for EEG result -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:id="@+id/layoutEegResult"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:visibility="visible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.35" >
+
+            <ImageView
+                android:id="@+id/iconHappyMango"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_marginBottom="20dp"
+                android:contentDescription="@string/iconHappyMango"
+                android:src="@drawable/icon_happy_mango"
+                android:visibility="gone"
+                tools:ignore="ImageContrastCheck" />
+
+            <ImageView
+                android:id="@+id/iconSadMango"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_marginBottom="20dp"
+                android:contentDescription="@string/iconSadMango"
+                android:src="@drawable/icon_sad_mango"
+                android:visibility="gone"
+                tools:ignore="ImageContrastCheck" />
+
+            <TextView
+                android:id="@+id/textEegResult"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:gravity="center"
+                android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+                android:textStyle="bold"
+                android:visibility="visible"
+                tools:ignore="TextContrastCheck" />
+
+            <TextView
+                android:id="@+id/textEegRealResult"
+                android:layout_width="300dp"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                android:textColor="@color/neurovibe.purple.variant.lighter"
+                android:textStyle="bold"
+                android:visibility="visible"
+                tools:ignore="TextContrastCheck" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
 </androidx.drawerlayout.widget.DrawerLayout>

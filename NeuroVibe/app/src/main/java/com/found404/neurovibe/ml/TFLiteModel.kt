@@ -35,9 +35,8 @@ class TFLiteModel(context: Context, modelFileName : String) {
         return output[0]
     }
 
-    fun loadCsvInput(context: Context, file: File, linesToSkip: Int): FloatArray? {
+    fun loadCsvInput(file: File, linesToSkip: Int): FloatArray? {
         try {
-//            val inputStream = context.assets.open(file)
             val reader = file.bufferedReader()
             repeat(linesToSkip) {reader.readLine()}
             val dataLine = reader.readLine() ?: return null
