@@ -98,14 +98,15 @@ class EEGDataProcessor(private val context: Context) {
         val high = highCut / nyquist
         val coeffs = DoubleArray(order + 1)
 
-        val M = order
-        val mid = M / 2.0
+        val mid = order / 2.0
 
         // Calcolo dei coefficienti con finestra di Hamming
-        for (n in 0..M) {
-            val sincHigh = if ((n - mid) == 0.0) 2 * high else sin(2 * PI * high * (n - mid)) / (PI * (n - mid))
-            val sincLow = if ((n - mid) == 0.0) 2 * low else sin(2 * PI * low * (n - mid)) / (PI * (n - mid))
-            val window = 0.54 - 0.46 * cos(2 * PI * n / M) // Hamming
+        for (n in 0..order) {
+            val sincHigh =
+                if ((n - mid) == 0.0) 2 * high else sin(2 * PI * high * (n - mid)) / (PI * (n - mid))
+            val sincLow =
+                if ((n - mid) == 0.0) 2 * low else sin(2 * PI * low * (n - mid)) / (PI * (n - mid))
+            val window = 0.54 - 0.46 * cos(2 * PI * n / order) // Hamming
             coeffs[n] = (sincHigh - sincLow) * window
         }
 
@@ -116,8 +117,8 @@ class EEGDataProcessor(private val context: Context) {
         }
 
         // Zero-padding ai bordi (pad a sinistra con M zeri)
-        val paddedInput = DoubleArray(input.size + M) { i ->
-            if (i < M) 0.0 else input[i - M]
+        val paddedInput = DoubleArray(input.size + order) { i ->
+            if (i < order) 0.0 else input[i - order]
         }
 
         // Convoluzione (applicazione filtro FIR)
@@ -125,7 +126,7 @@ class EEGDataProcessor(private val context: Context) {
         for (i in output.indices) {
             var acc = 0.0
             for (j in coeffs.indices) {
-                acc += coeffs[j] * paddedInput[i + M - j]
+                acc += coeffs[j] * paddedInput[i + order - j]
             }
             output[i] = acc
         }

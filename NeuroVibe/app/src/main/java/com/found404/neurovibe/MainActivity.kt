@@ -285,7 +285,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             // Setto lo stato della batteria del caschetto
-            var batteryString = if(estimateBatteryPercentage(voltage) == 120) "Charging..." else "${estimateBatteryPercentage(voltage)} %"
+            val batteryString = if(estimateBatteryPercentage(voltage) == 120) "Charging..." else "${estimateBatteryPercentage(voltage)} %"
             textBatteryStatus.text = getString(R.string.battery_status, batteryString)
 
             // Cambio il testo del bottone principale
@@ -724,13 +724,13 @@ class MainActivity : AppCompatActivity() {
         builder.setMessage("Before starting EEG data receiving, you must connect your device to Mindrove WiFi network.")
 
         // Pulsante POSITIVO
-        builder.setPositiveButton("Open WiFi settings") { dialog, which ->
+        builder.setPositiveButton("Open WiFi settings") { dialog, _ ->
             openWifiSettings()
             dialog.dismiss()
         }
 
         // Pulsante NEGATIVO
-        builder.setNegativeButton("Cancel") { dialog, which ->
+        builder.setNegativeButton("Cancel") { dialog, _ ->
             dialog.dismiss()
         }
 
@@ -753,7 +753,7 @@ class MainActivity : AppCompatActivity() {
         builder.setView(input)
 
         // Pulsante POSITIVO
-        builder.setPositiveButton("Ok") { dialog, which ->
+        builder.setPositiveButton("Ok") { dialog, _ ->
             serverIpAddress = input.text.toString()
             serverUrl = "http://$serverIpAddress:8080/upload"
             callEdgeServer(modelToUse, csvFile)
@@ -762,7 +762,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Pulsante NEGATIVO
-        builder.setNegativeButton("Cancel") { dialog, whihch ->
+        builder.setNegativeButton("Cancel") { dialog, _ ->
             dialog.dismiss()
         }
 
@@ -772,7 +772,7 @@ class MainActivity : AppCompatActivity() {
             builder.setMessage("Set in the input below the IP address of the PC where the edge serve is currently running.\nYou can read the IP address on MindRove WiFi properties on the PC.\n\nLast IP address used: \"$serverIpAddress\".\n")
 
             // Pulsante NEUTRO
-            builder.setNeutralButton("Use last IP") { dialog, which ->
+            builder.setNeutralButton("Use last IP") { dialog, _ ->
                 callEdgeServer(modelToUse, csvFile)
 
                 dialog.dismiss()
@@ -792,7 +792,7 @@ class MainActivity : AppCompatActivity() {
         builder.setMessage("There was an error connecting to the edge server.\n\n$errMsg")
 
         // Pulsante POSITIVO
-        builder.setPositiveButton("Ok") { dialog, which ->
+        builder.setPositiveButton("Ok") { dialog, _ ->
             dialog.dismiss()
         }
 
@@ -809,7 +809,7 @@ class MainActivity : AppCompatActivity() {
         builder.setMessage("Predicted class has an invalid value: $prediction.")
 
         // Pulsante POSITIVO
-        builder.setPositiveButton("Ok") { dialog, which ->
+        builder.setPositiveButton("Ok") { dialog, _ ->
             dialog.dismiss()
         }
 

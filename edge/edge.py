@@ -135,8 +135,10 @@ def inference(model_path, csv_path):
 
     print(f"\n--- Esecuzione dell'Inferenza ({all_input_data_np.shape[0]} campioni) ---")
     all_predictions = []
+    first_row = all_input_data_np.shape[0] - 5
+    last_row = all_input_data_np.shape[0]
 
-    for i in range(all_input_data_np.shape[0]):
+    for i in range(first_row, last_row, 1):
         # Per ogni singola riga di dati (un chunk di 2 secondi)
         single_input_sample_np = all_input_data_np[i]
 
