@@ -133,10 +133,6 @@ class MainActivity : AppCompatActivity() {
     /// CLASS INSTANCE MANAGEMENT ///
     @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
-        // TODO: Rimuovere questa riga in produzione
-//        // Imposta il tema chiaro a scopo di debug
-//        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-
         // Impedisce all'applicazione di andare in modalità landscape
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
@@ -462,7 +458,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 model = TFLiteModel(this, modelFile)
                 for(i in 1..totalSegments){
-                    val inputData = model?.loadCsvInput(this, fileName, linesToSkip = i + completeRound * totalSegments)
+                    val inputData = model?.loadCsvInput(fileName, linesToSkip = i + completeRound * totalSegments)
                     if (inputData != null) {
                         val output = model?.predict(inputData)
                         output?.let {
