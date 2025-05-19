@@ -32,7 +32,6 @@
     <string name="use_small_model_edge">Use Small Model Edge</string>
     <string name="use_big_model_edge">Use Big Model Edge</string>
 
-    <string name="iconInfo">Info icon</string>
     <string name="iconBatteryStatus">Battery status icon</string>
     <string name="iconDataAcquiring">Data acquiring icon</string>
     <string name="iconNetworkStatus">Network status icon</string>

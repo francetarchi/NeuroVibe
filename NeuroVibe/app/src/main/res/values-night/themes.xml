@@ -5,13 +5,16 @@
     <style name="Theme.NeuroVibe" parent="Theme.Material3.Dark.NoActionBar">
         <!-- Primary brand color -->
         <item name="colorPrimary">@color/neurovibe.purple.variant.lighter</item>
-        <item name="colorPrimaryVariant">@color/neurovibe.purple</item>
+        <item name="colorPrimaryVariant">@color/neurovibe.purple.variant.lighter.lighter</item>
         <item name="colorOnPrimary">@color/white</item>
 
         <!-- Secondary brand color -->
-        <item name="colorSecondary">@color/neurovibe.teal</item>
-        <item name="colorSecondaryVariant">@color/neurovibe.teal.variant.lighter</item>
+        <item name="colorSecondary">@color/neurovibe.orange.variant.lighter</item>
+        <item name="colorSecondaryVariant">@color/neurovibe.orange</item>
         <item name="colorOnSecondary">@color/black</item>
+
+        <!-- Text color -->
+        <item name="android:textColorPrimary">@color/neurovibe.purple.darkMode</item>
 
         <!-- Status bar color -->
         <item name="android:statusBarColor">?attr/colorSurface</item>
@@ -27,8 +30,13 @@
     </style>
 
 
+    <!--  BUTTONS  -->
+    <style name="Theme.NeuroVibe.Button" parent="Widget.Material3.Button">
+    </style>
+
+
     <!--  DIALOGS  -->
-    <style name="Theme.NeuroVibe.Dialog" parent="Theme.Material3.Dark.Dialog">
+    <style name="Theme.NeuroVibe.Dialog" parent="Theme.Material3.Dark.Dialog.Alert">
         <!-- Set the main text color -->
         <item name="android:textColorPrimary">@color/dialog.message.text.color</item>
 
@@ -39,15 +47,15 @@
     </style>
 
     <style name="Theme.NeuroVibe.Dialog.Button.Positive" parent="Widget.Material3.Button.TextButton.Dialog">
-        <item name="android:textColor">@color/neurovibe.purple</item>
+        <item name="android:textColor">@color/neurovibe.purple.darkMode</item>
     </style>
 
     <style name="Theme.NeuroVibe.Dialog.Button.Negative" parent="Widget.Material3.Button.TextButton.Dialog">
-        <item name="android:textColor">@color/neurovibe.purple.variant.lighter</item>
+        <item name="android:textColor">@color/neurovibe.purple.variant.lighter.lighter</item>
     </style>
 
     <style name="Theme.NeuroVibe.Dialog.Button.Neutral" parent="Widget.Material3.Button.TextButton.Dialog">
-        <item name="android:textColor">@color/neurovibe.purple</item>
+        <item name="android:textColor">@color/neurovibe.purple.darkMode</item>
     </style>
 
 </resources>

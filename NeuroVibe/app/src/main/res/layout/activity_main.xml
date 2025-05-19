@@ -27,7 +27,7 @@
             android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
             android:textColor="@color/neurovibe.gray"
             android:textSize="15sp"
-            android:visibility="invisible"
+            android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.0"
@@ -364,7 +364,6 @@
                 android:layout_marginBottom="10dp"
                 android:gravity="center"
                 android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
-                android:textColor="@color/neurovibe.purple"
                 android:textStyle="bold"
                 android:visibility="visible"
                 tools:ignore="TextContrastCheck" />

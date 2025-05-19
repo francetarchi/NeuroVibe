@@ -1,8 +1,11 @@
-from flask import Flask, request, jsonify
 import os
+import shutil
+
 import pandas as pd
 import numpy as np
 import tensorflow.lite as tflite
+
+from flask import Flask, request, jsonify
 
 
 TARGET_COLUMN_NAME = None 
@@ -11,6 +14,7 @@ TFLITE_BIG_MODEL_PATH = "./edge/models/Bigmodel1000Neurons.tflite"
 TFLITE_SMALL_MODEL_PATH = "./edge/models/Smallmodel100Neurons.tflite"
 
 CSV_FILE_PATH = "./edge/uploads"
+
 
 if not os.path.exists(TFLITE_BIG_MODEL_PATH):
     print("Big model non trovato.")
@@ -22,8 +26,16 @@ if not os.path.exists(TFLITE_SMALL_MODEL_PATH):
 
 if not os.path.exists(CSV_FILE_PATH):
     os.makedirs(CSV_FILE_PATH)
+else:
+    try:
+        shutil.rmtree(CSV_FILE_PATH)
+        os.makedirs(CSV_FILE_PATH)
+    except Exception as e:
+        print(f"Errore durante la pulizia della directory {CSV_FILE_PATH}: {e}")
+        exit()
 
 
+# --- Funzione per Caricare il Modello TFLite ---
 def load_tflite_model(model_path):
     """Carica il modello TFLite e alloca i tensori."""
     print(f"Caricamento del modello TFLite da: {model_path}...")
@@ -36,7 +48,8 @@ def load_tflite_model(model_path):
         print(f"Errore durante il caricamento del modello TFLite: {e}")
         return None
 
-# --- 3. Funzione per Caricare e Preprocessare i Dati dal CSV (per TFLite) ---
+
+# --- Funzione per Caricare e Preprocessare i Dati dal CSV (per TFLite) ---
 def load_and_preprocess_csv_for_tflite(csv_path, target_column_name=None,
                                      expected_input_dtype=np.float32,
                                      expected_num_features=None):
@@ -51,15 +64,15 @@ def load_and_preprocess_csv_for_tflite(csv_path, target_column_name=None,
         return None, None
 
     X_df = df.copy() 
-    y_actual_series = None # Etichette reali, se presenti
+    y_actual_series = None
 
     if target_column_name and target_column_name in df.columns:
         print(f"Estrazione della colonna target: '{target_column_name}'")
-        y_actual_series = X_df.pop(target_column_name) # Rimuove e restituisce la colonna target
+        y_actual_series = X_df.pop(target_column_name)
     elif target_column_name:
         print(f"Attenzione: La colonna target '{target_column_name}' non è stata trovata nel CSV.")
 
-   # Verifica del numero di feature
+   # Verifico il numero di feature
     if expected_num_features is not None and X_df.shape[1] != expected_num_features:
         print(f"ATTENZIONE: Il numero di feature nel CSV processato ({X_df.shape[1]}) "
               f"non corrisponde alle feature attese dal modello ({expected_num_features}).")
@@ -77,15 +90,17 @@ def load_and_preprocess_csv_for_tflite(csv_path, target_column_name=None,
     print(f"\nDati CSV processati (X_processed_all_rows) pronti (shape: {X_processed_all_rows.shape}, dtype: {X_processed_all_rows.dtype}).")
     return X_processed_all_rows, y_actual_series
 
+
+# --- Funzione per Eseguire l'Inferenza ---
 def inference(model_path, csv_path):
     output = []
     
-    # Carica il modello TFLite
+    # Carico il modello TFLite
     interpreter = load_tflite_model(model_path)
     if interpreter is None:
         return
 
-    # Ottieni i dettagli dei tensori di input e output
+    # Ottengo i dettagli dei tensori di input e output
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
@@ -94,37 +109,24 @@ def inference(model_path, csv_path):
     input_shape = input_details[0]['shape'] 
     input_dtype = input_details[0]['dtype']
     print(f"  Indice Input: {input_index}")
-    print(f"  Shape Input Atteso: {input_shape}") # Il primo '1' è la dimensione del batch
+    print(f"  Shape Input Atteso: {input_shape}")
     print(f"  Tipo Dati Input Atteso: {input_dtype}")
 
     print("\n--- Dettagli Output Modello TFLite ---")
     output_index = output_details[0]['index']
-    output_shape = output_details[0]['shape']
-    output_dtype = output_details[0]['dtype']
 
-    # Parametri di dequantizzazione se l'output è quantizzato
-    output_quant_params = output_details[0].get('quantization_parameters', None)
-    output_scale = output_quant_params['scales'][0] if output_quant_params and len(output_quant_params.get('scales', [])) > 0 else 1.0
-    output_zero_point = output_quant_params['zero_points'][0] if output_quant_params and len(output_quant_params.get('zero_points', [])) > 0 else 0
-
-    print(f"  Indice Output: {output_index}")
-    print(f"  Shape Output: {output_shape}")
-    print(f"  Tipo Dati Output: {output_dtype}")
-    if output_scale != 1.0 or output_zero_point != 0:
-        print(f"  Output Scale: {output_scale}, Zero Point: {output_zero_point}")
-
-    # Determina il numero di feature attese dal modello TFLite (escludendo la dimensione batch)
+    # Determino il numero di feature attese dal modello TFLite (escludendo la dimensione batch)
     expected_num_features_from_model = input_shape[-1] if len(input_shape) > 1 else None
-    if len(input_shape) == 2: # Tipico per [batch_size, num_features]
+    if len(input_shape) == 2:
         expected_num_features_from_model = input_shape[1]
-    elif len(input_shape) > 2: # Es. per immagini [batch_size, H, W, C], il prodotto H*W*C
+    elif len(input_shape) > 2:
         expected_num_features_from_model = np.prod(input_shape[1:])
 
     all_input_data_np, all_actual_labels = load_and_preprocess_csv_for_tflite(
         csv_path,
         TARGET_COLUMN_NAME,
         expected_input_dtype=input_dtype,
-        expected_num_features=expected_num_features_from_model if len(input_shape) == 2 else None # Passalo solo se è un semplice array di feature
+        expected_num_features=expected_num_features_from_model if len(input_shape) == 2 else None
     )
 
     if all_input_data_np is None:
@@ -135,22 +137,22 @@ def inference(model_path, csv_path):
     all_predictions = []
 
     for i in range(all_input_data_np.shape[0]):
-        # Prendi una singola riga di dati (un campione)
+        # Per ogni singola riga di dati (un chunk di 2 secondi)
         single_input_sample_np = all_input_data_np[i]
 
         if len(single_input_sample_np.shape) < len(input_shape):
             input_tensor_data = np.expand_dims(single_input_sample_np, axis=0)
         else:
-            input_tensor_data = single_input_sample_np # Assumiamo che abbia già la forma corretta [1, ...]
+            input_tensor_data = single_input_sample_np
 
-        # Verifica che la forma finale corrisponda (tollerando None per dimensioni flessibili)
+        # Verifico che la forma finale corrisponda (tollerando None per dimensioni flessibili)
         if not all(s_model == s_data or s_model is None for s_model, s_data in zip(input_shape, input_tensor_data.shape)):
              print(f"ERRORE CRITICO: Shape del tensore di input preparato ({input_tensor_data.shape}) "
                    f"non corrisponde allo shape atteso dal modello ({input_shape}) per il campione {i}.")
              print("Controlla la logica di reshape e preprocessing.")
-             continue # Salta questo campione
+             continue
 
-        # Imposta il tensore di input
+        # Imposto il tensore di input
         try:
             interpreter.set_tensor(input_index, input_tensor_data)
         except Exception as e:
@@ -159,38 +161,28 @@ def inference(model_path, csv_path):
             print(f"  Dettagli input attesi: shape={input_shape}, dtype={input_dtype}")
             continue
 
-        # Esegui l'inferenza
+        # Eseguo l'inferenza
         interpreter.invoke()
 
-        # Ottieni il tensore di output
-        prediction_raw = interpreter.get_tensor(output_index)
-
-        # (Opzionale) Dequantizza l'output se necessario
-        if output_dtype == np.uint8 or output_dtype == np.int8:
-            if output_scale != 1.0 or output_zero_point != 0:
-                prediction_dequantized = output_scale * (prediction_raw.astype(np.float32) - output_zero_point)
-                current_prediction = prediction_dequantized
-            else: # Nessun parametro di dequantizzazione, usa raw
-                current_prediction = prediction_raw
-        else: # L'output è già float
-            current_prediction = prediction_raw
-
+        # Ottengo il tensore di output
+        current_prediction = interpreter.get_tensor(output_index)
+        
         all_predictions.append(current_prediction)
 
-        # Stampa l'output per il campione corrente
+        # Stampo l'output per il campione corrente
         actual_label_info = ""
         if all_actual_labels is not None and i < len(all_actual_labels):
             actual_label_info = f" (Etichetta Reale: {all_actual_labels.iloc[i]})"
 
-        # Rimuovi la dimensione batch dall'output per la stampa, se presente
+        # Rimuovo la dimensione batch dall'output per la stampa, se presente
         if current_prediction.shape[0] == 1 and current_prediction.ndim > 1 :
             output_to_print = current_prediction[0]
         else:
             output_to_print = current_prediction
 
-        if output_to_print.ndim == 0 or output_to_print.size == 1: # Regressione o classificazione binaria
+        if output_to_print.ndim == 0 or output_to_print.size == 1:
             print(f"Campione {i+1}: Predetto = {output_to_print.item():.4f}{actual_label_info}")
-        else: # Classificazione multi-classe (probabilità)
+        else:
             predicted_class_idx = np.argmax(output_to_print)
             confidence = output_to_print[predicted_class_idx]
             print(f"Campione {i+1}: Predetto (raw) = {output_to_print}, Classe = {predicted_class_idx} (Conf: {confidence:.4f}){actual_label_info}")
@@ -204,15 +196,12 @@ def inference(model_path, csv_path):
 
     return ret
 
+
+# --- Inizializzazione dell'App Flask ---
 app = Flask(__name__)
 
-# # Configure the upload folder (create it if it doesn't exist)
-# UPLOAD_FOLDER = 'uploads'
-# if not os.path.exists(UPLOAD_FOLDER):
-#     os.makedirs(UPLOAD_FOLDER)
 
-# app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
+# --- Configurazione dell'App Flask ---
 @app.route('/upload', methods=['POST'])
 def upload_csv():
     """
@@ -228,8 +217,6 @@ def upload_csv():
 
     file = request.files['file']
 
-    # If the user does not select a file, the browser submits an
-    # empty file without a filename.
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
@@ -237,9 +224,8 @@ def upload_csv():
         model_to_use = request.form.get("model")
         print("--- INFO: requested model: ", model_to_use.upper(), "\n")
 
-        # Securely save the file
         filename = file.filename
-        filepath = os.path.join(app.config['CSV_FILE_PATH'], filename)
+        filepath = os.path.join(CSV_FILE_PATH, filename)
         try:
             file.save(filepath)
 
@@ -252,20 +238,9 @@ def upload_csv():
                 return jsonify({'error': 'Invalid model type specified. Use "small" or "big".'}), 400
             
             if not selected_model_path or not os.path.exists(selected_model_path):
-                 return jsonify({'error': f'Model file not found for type: {model_to_use}'}), 500
-
-            # Perform inference using the selected model on the uploaded CSV
+                return jsonify({'error': f'Model file not found for type: {model_to_use}'}), 500
+            
             result = inference(selected_model_path, filepath)
-
-            # Optional: Process the CSV file (e.g., read with pandas)
-            # try:
-            #     df = pd.read_csv(filepath)
-            #     print(f"Successfully received and read CSV: {filename}")
-            #     print(df.head()) # Print the first few rows
-            #     # You can now process the data in the DataFrame
-            # except Exception as e:
-            #     print(f"Error reading CSV file: {e}")
-            #     # You might want to return an error here if processing is mandatory
 
             print("--- Sending HTTP response (to the IP address at the beginning of the next line) ---")
             return jsonify({'message': 'File uploaded successfully and inference completed.', 'result': result}), 200
@@ -275,8 +250,9 @@ def upload_csv():
 
     return jsonify({'error': 'An unexpected error occurred'}), 500
 
+
+# --- Run the Flask app ---
 if __name__ == '__main__':
-    # Run the Flask app
     # Setting debug=True provides helpful error messages during development
     # Setting host='0.0.0.0' makes the server accessible from other machines on the network
     # Setting port=5000 (or any other desired port)

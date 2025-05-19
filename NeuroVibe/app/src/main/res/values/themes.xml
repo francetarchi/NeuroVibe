@@ -9,9 +9,12 @@
         <item name="colorOnPrimary">@color/white</item>
 
         <!-- Secondary brand color -->
-        <item name="colorSecondary">@color/neurovibe.teal</item>
-        <item name="colorSecondaryVariant">@color/neurovibe.teal.variant.lighter</item>
+        <item name="colorSecondary">@color/neurovibe.orange</item>
+        <item name="colorSecondaryVariant">@color/neurovibe.orange.variant.lighter</item>
         <item name="colorOnSecondary">@color/black</item>
+
+        <!-- Text color -->
+        <item name="android:textColorPrimary">@color/neurovibe.purple</item>
 
         <!-- Status bar color -->
         <item name="android:statusBarColor">?attr/colorSurface</item>
@@ -29,7 +32,6 @@
 
     <!--  BUTTONS  -->
     <style name="Theme.NeuroVibe.Button" parent="Widget.Material3.Button">
-        <!-- Voglio che tutti i bottoni abbiano un'ombreggiatura verso il basso -->
     </style>
 
 

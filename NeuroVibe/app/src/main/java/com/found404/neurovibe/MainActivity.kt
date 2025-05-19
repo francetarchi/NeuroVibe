@@ -28,7 +28,7 @@ import mylibrary.mindrove.SensorData
 import mylibrary.mindrove.ServerManager
 import java.io.File
 import android.net.wifi.WifiManager
-import androidx.appcompat.app.AppCompatDelegate
+import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 
 import okhttp3.*
@@ -89,10 +89,14 @@ class MainActivity : AppCompatActivity() {
     private val showBackHomeButton = MutableLiveData(false)
     private val showModelButtons = MutableLiveData(false)
     private val totalSegments = 5
+    private var currentImageIndex = -1
+    private var completeRound = -1
     private var selectedModelFile: String? = null
     private var model: TFLiteModel? = null
-    private var serverUrl = "http://192.168.4.3:8080/upload"
+    private var serverIpAddress = ""
+    private var serverUrl = ""
 
+    private lateinit var featuresFile: File
     private lateinit var textNetworkStatus: TextView
     private lateinit var textSensorData: TextView
     private lateinit var textDataAcquiring: TextView
@@ -124,14 +128,14 @@ class MainActivity : AppCompatActivity() {
         R.drawable.image6,
         R.drawable.image7
     )
-    private var currentImageIndex = -1
-    private var completeRound = -1
 
+
+    /// CLASS INSTANCE MANAGEMENT ///
     @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
         // TODO: Rimuovere questa riga in produzione
-        // Imposta il tema chiaro a scopo di debug
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+//        // Imposta il tema chiaro a scopo di debug
+//        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
 
         // Impedisce all'applicazione di andare in modalità landscape
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -194,7 +198,6 @@ class MainActivity : AppCompatActivity() {
         // Observers
         sensorDataText.observe(this){
             if (isAcquiring.value == true) {
-                textSensorData.visibility = View.VISIBLE
                 textSensorData.text = it
             }
         }
@@ -231,6 +234,8 @@ class MainActivity : AppCompatActivity() {
         serverManager.stop()
     }
 
+
+    /// PERMISSION REQUEST FUNCTIONS ///
     private fun checkAndRequestPermissions() {
         val permissions = arrayOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -260,6 +265,74 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+    /// SETTING LISTENERS ///
+    @SuppressLint("SetTextI18n")
+    private fun startServerManager() {
+        serverManager.start()
+
+        // Listener sul bottone per tornare alla home
+        buttonBackHome.setOnClickListener {
+            // Cambio il testo del bottone principale
+            buttonStartEEG.text = getString(R.string.start_eeg)
+
+            // Modifico l'interfaccia
+            interfaceToHome()
+        }
+
+        // Listener sul bottone per iniziare un nuovo EEG
+        buttonStartEEG.setOnClickListener {
+            // Controllo che il dispositivo sia connesso alla rete del Mindrove
+            if (!isConnectedToMindRove()) {
+                showWiFiConnectionDialog()
+                return@setOnClickListener
+            }
+
+            // Setto lo stato della batteria del caschetto
+            var batteryString = if(estimateBatteryPercentage(voltage) == 120) "Charging..." else "${estimateBatteryPercentage(voltage)} %"
+            textBatteryStatus.text = getString(R.string.battery_status, batteryString)
+
+            // Cambio il testo del bottone principale
+            buttonStartEEG.text = getString(R.string.next_image)
+
+            // Scelgo l'immagine da visualizzare
+            currentImageIndex = if(currentImageIndex != -1) (currentImageIndex + 1) % imageList.size else 0
+            if (currentImageIndex == 0) completeRound += 1
+            galleryImageView.setImageResource(imageList[currentImageIndex])
+
+            // Modifico l'interfaccia
+            interfaceToPaintingShow()
+
+            // Inizio l'acquisizione dei dati
+            acquiredData.clear()
+            acquireData()
+        }
+
+        // Listeners sui bottoni che chiamano i modelli in locale
+        buttonUseSmallModel.setOnClickListener {
+            selectedModelFile = "Smallmodel100Neurons.tflite"
+            val predictions = initializeModel(featuresFile)
+            val predictedClass = finalPrediction(predictions)
+            setEegResults(predictedClass)
+        }
+        buttonUseBigModel.setOnClickListener {
+            selectedModelFile = "Bigmodel1000Neurons.tflite"
+            val predictions = initializeModel(featuresFile)
+            val predictedClass = finalPrediction(predictions)
+            setEegResults(predictedClass)
+        }
+
+        // Listeners sui bottoni che richiamano i modelli in remoto (edge server)
+        buttonUseSmallModelEdge.setOnClickListener {
+            showIpRequestDialog("small", featuresFile)
+        }
+        buttonUseBigModelEdge.setOnClickListener {
+            showIpRequestDialog("big", featuresFile)
+        }
+    }
+
+
+    /// CONNECTION TO MINDROVE FUNCTIONS ///
     private fun openWifiSettings() {
         val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
         wifiSettingsLauncher.launch(intent)
@@ -295,308 +368,93 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    private fun showEegResults(predictedClass: Int?) {
-        // Controllo che il risultato sia valido
-        if (predictedClass == null || predictedClass < 0 || predictedClass > 1) {
-            Log.e("PREDICTION", "Predicted class has an invalid value: $predictedClass.")
-            handleInvalidPredictionError(predictedClass)
-        }
-
-        // Scelgo l'icona e il testo da visualizzare
-        if (predictedClass == 0) {
-            // Classe 0 ==> Opera non gradita
-            iconSadMango.visibility = View.VISIBLE
-            iconHappyMango.visibility = View.GONE
-            textEegResult.text = getString(R.string.painting_disliked)
-        } else {
-            // Classe 1 ==> Opera gradita
-            iconHappyMango.visibility = View.VISIBLE
-            iconSadMango.visibility = View.GONE
-            textEegResult.text = getString(R.string.painting_liked)
-        }
-
-        // Setto il risultato numerico (classe predetta)
-        textEegRealResult.text = buildString { append("Predicted class: ").append(predictedClass) }
-
-        // Aggiorno correttamente gli elementi visualizzati sulla schermata
-        showModelButtons.value = false
-        layoutEegResult.visibility = View.VISIBLE
-        buttonStartEEG.translationY = 325f
-        buttonBackHome.translationY = 325f
-        showEEGButton.value = true
-        showBackHomeButton.value = true
-    }
-
-    @SuppressLint("SetTextI18n")
-    private fun startServerManager() {
-        serverManager.start()
-
-        buttonBackHome.setOnClickListener {
-            // Ricrea la schermata principale
-            buttonBackHome.visibility = View.INVISIBLE
-            layoutDataAcquiring.visibility = View.INVISIBLE
-            layoutBatteryStatus.visibility = View.INVISIBLE
-            layoutWaitingEdge.visibility = View.INVISIBLE
-            layoutEegResult.visibility = View.INVISIBLE
-
-            logoImageView.visibility = View.VISIBLE
-
-            buttonStartEEG.text = "Start EEG"
-            buttonStartEEG.animate().translationY(0f).setDuration(1000).start()
-            buttonBackHome.animate().translationY(0f).setDuration(1000).start()
-        }
-
-        buttonStartEEG.setOnClickListener {
-            // Controllo che il dispositivo sia connesso alla rete del Mindrove
-            if (!isConnectedToMindRove()) {
-                showWiFiConnectionDialog()
-                return@setOnClickListener
-            }
-
-            acquiredData.clear()
-
-            buttonStartEEG.text = "Next Image"
-
-            // Mostro stato della batteria del caschetto
-            var batteryString = if(estimateBatteryPercentage(voltage) == 120) "Charging..." else "${estimateBatteryPercentage(voltage)} %"
-            textBatteryStatus.text = getString(R.string.battery_status, batteryString)
-            layoutBatteryStatus.visibility = View.VISIBLE
-
-            buttonStartEEG.text = getString(R.string.next_image)
-            val segmentDurationMs = 2000L
-            var currentSegment = 1
-            val segmentHandler = Handler(Looper.getMainLooper())
-            val exporter = EEGDataProcessor(this)
-
-            // Sposto verso il basso i bottoni "Start EEG" e "Home" (se "Start EEG" è al centro della schermata)
-            if (buttonStartEEG.translationY == 0f) {
-                buttonStartEEG.translationY = 0f
-                buttonBackHome.translationY = 0f
-                buttonStartEEG.animate().translationY(325f).setDuration(1000).start()
-                buttonBackHome.animate().translationY(325f).setDuration(1000).start()
-                buttonStartEEG.isEnabled = false
-                buttonBackHome.isEnabled = false
-                buttonStartEEG.postDelayed({
-                    showEEGButton.value = false
-                    showBackHomeButton.value = false
-                }, 1300)
-            } else {
-                showEEGButton.value = false
-                showBackHomeButton.value = false
-            }
-
-            // Nascondo alcuni elementi
-            logoImageView.visibility = View.INVISIBLE
-            layoutNetworkStatus.visibility = View.INVISIBLE
-            layoutEegResult.visibility = View.INVISIBLE
-
-            // Visualizzo altri elementi
-            textSensorData.visibility = View.VISIBLE
-            layoutDataAcquiring.visibility = View.VISIBLE
-            layoutBatteryStatus.visibility = View.VISIBLE
-            galleryImageView.visibility = View.VISIBLE
-
-            // Scelgo l'immagine da visualizzare
-            currentImageIndex = if(currentImageIndex != -1) (currentImageIndex + 1) % imageList.size else 0
-            if (currentImageIndex == 0) completeRound += 1
-            galleryImageView.setImageResource(imageList[currentImageIndex])
-
-            if (isAcquiring.value != true) {
-                isAcquiring.value = true
-                textDataAcquiring.text = getString(R.string.inizio_acquisizione, totalSegments)
-
-                val segmentRunnable = object : Runnable{
-                    override fun run(){
-                        val numEeg = currentSegment
-                        currentSegment++
-                        textDataAcquiring.text = getString(R.string.acquisizione, currentSegment, totalSegments)
-
-                        val currentData = ArrayList(acquiredData)
-                        acquiredData.clear()
-
-                        // Esportazione dati in un file CSV
-                        val rawfile = exporter.exportRawDataToCsv(currentData, numEeg, currentImageIndex)
-                        if(rawfile != null){
-                            val featuresFile = File(rawfile.parent, "features_image_${currentImageIndex}.csv")
-                            exporter.extractFeaturesToCsv(rawfile, featuresFile)
-                        }
-
-                        if(currentSegment <= totalSegments){
-                            segmentHandler.postDelayed(this, segmentDurationMs)
-                        } else {
-                            isAcquiring.value = false
-                            textDataAcquiring.text = getString(R.string.fine_acquisizione)
-
-                            // Salvo i dati in un file CSV
-                            val dir = this@MainActivity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                            if (dir == null) {
-                                Toast.makeText(this@MainActivity, "Unable to access the save folder.", Toast.LENGTH_LONG).show()
-                                return
-                            }
-                            val featuresFile = File(dir, "features_image_${currentImageIndex}.csv")
-
-                            Log.i("FILE", "File path: ${featuresFile.absolutePath}")
-                            Log.i("FILE", "dir: ${dir.absolutePath}")
-                            Log.i("FILE", "currentImageIndex: $currentImageIndex")
-
-                            // Nascondo alcuni elementi
-                            galleryImageView.visibility = View.INVISIBLE
-                            textSensorData.visibility = View.INVISIBLE
-
-                            // Visualizzo i bottoni per scegliere il modello da usare
-                            showModelButtons.value = true
-
-                            // Setto le funzioni da richiamare al click dei bottoni
-                            // LOCAL BUTTONS //
-                            buttonUseSmallModel.setOnClickListener {
-                                selectedModelFile = "Smallmodel100Neurons.tflite"
-                                val predictions = initializeModel(featuresFile)
-                                val predictedClass = finalPrediction(predictions)
-                                showEegResults(predictedClass)
-                            }
-                            buttonUseBigModel.setOnClickListener {
-                                selectedModelFile = "Bigmodel1000Neurons.tflite"
-                                val predictions = initializeModel(featuresFile)
-                                val predictedClass = finalPrediction(predictions)
-                                showEegResults(predictedClass)
-                            }
-
-                            // EDGE BUTTONS //
-                            buttonUseSmallModelEdge.setOnClickListener {
-                                val featuresFile2 = File(dir, "features_image_${currentImageIndex}.csv")
-                                sendFileToServer("small", featuresFile2, serverUrl)
-
-                                showModelButtons.value = false
-
-                                layoutWaitingEdge.visibility = View.VISIBLE
-                            }
-                            buttonUseBigModelEdge.setOnClickListener {
-                                val featuresFile2 = File(dir, "features_image_${currentImageIndex}.csv")
-                                sendFileToServer("big", featuresFile2, serverUrl)
-
-                                showModelButtons.value = false
-
-                                layoutWaitingEdge.visibility = View.VISIBLE
-                            }
-                        }
-                    }
-                }
-                segmentHandler.postDelayed(segmentRunnable, segmentDurationMs)
-            }
-        }
-    }
-
-    // REQUEST TO EDGE
-    private fun sendFileToServer(
-        modelSelected : String,
-        file: File,
-        serverUrl: String
-    ) {
-        if (!file.exists()) {
-            Log.e("FILE", "File not found: ${file.absolutePath}")
-        }
-
-        if (!file.isFile) {
-            Log.e("FILE", "Provided path is not a file: ${file.absolutePath}")
-        }
-
-        // Determine the MIME type (content type) of the file.
-        // For a CSV, it's typically "text/csv". You might want to
-        // use a utility function to determine MIME type based on file extension
-        // for more general file sending.
-        val mediaType = "text/csv".toMediaTypeOrNull()
-
-        // Create the request body from the file
-        val requestBody = file.asRequestBody(mediaType)
-
-        // Create the multipart request body (useful if your server expects a form-data upload)
-        val multipartBody = MultipartBody.Builder()
-            .setType(MultipartBody.FORM)
-            .addFormDataPart("model", modelSelected)
-            .addFormDataPart(
-                "file", // The name of the form field on the server side (e.g., "file")
-                file.name, // Use the original file name
-                requestBody
-            )
-            .build()
-
-        // Create the HTTP POST request
-        val request = Request.Builder()
-            .url(serverUrl)
-            .post(multipartBody) // Use multipartBody for form-data upload
-            .build()
-
-        val client = OkHttpClient()
-
-        // Execute the request asynchronously
-        client.newCall(request).enqueue(
-            object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    Log.e("EDGESERVER", "Network request failed: ${e.message}")
-
-                    // Sul thread principale (solo dal thread principale posso modificare la UI)
-                    runOnUiThread {
-                        handleEdgeConnectionError(e.message.toString())
-                    }
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    Log.i("EDGESERVER", "Network request successful")
-                    runOnUiThread { layoutWaitingEdge.visibility = View.INVISIBLE }
-
-                    response.use {
-                        if (response.isSuccessful) {
-                            Log.i("EDGESERVER", "File uploaded successfully.")
-
-                            // Handle successful response
-                            val responseBody = response.body?.string()
-                            val gson = Gson()
-                            val bodyJson = gson.fromJson<Map<String, Any>>(responseBody, object : TypeToken<Map<String, Any>>() {}.type)
-
-                            // Tentativo di cast a Double (safe cast: se non riesce, ret sarà null)
-                            // Questo passaggio serve perché il valore viene preso dal body automaticamente come java.lang.Double.
-                            val ret = bodyJson["result"] as? Double
-
-                            // Converto a Int se il cast a Double è riuscito (altrimenti retInt sarà null)
-                            val retInt: Int? = ret?.toInt()
-
-                            Log.i("EDGESERVER", "Server response: $retInt")
-
-                            runOnUiThread { showEegResults(retInt) }
-                        } else {
-                            // Handle unsuccessful response
-                            val errorBody = response.body?.string()
-
-                            Log.i("EDGESERVER", "File upload failed. Server code: ${response.code}, Error: $errorBody")
-
-                            runOnUiThread { handleEdgeConnectionError("File upload failed. Server code: ${response.code}, Error: $errorBody") }
-                        }
-                    }
-                }
-            }
+    private fun estimateBatteryPercentage(mv: UInt): Int {
+        val table = listOf(
+            4200 to 100,
+            4100 to 90,
+            4000 to 80,
+            3900 to 75,
+            3800 to 70,
+            3700 to 65,
+            3600 to 50,
+            3500 to 45,
+            3400 to 40,
+            3300 to 30,
+            3200 to 10,
+            3000 to 0
         )
+
+        for (i in 0 until table.size - 1) {
+            val (v1, p1) = table[i]
+            val (v2, p2) = table[i + 1]
+
+            if (mv >= v2.toUInt() && mv <= v1.toUInt()) {
+                // Interpolazione lineare tra i due punti
+                val fraction = (mv - v2.toUInt()).toDouble() / (v1 - v2)
+                val percent = p2 + fraction * (p1 - p2)
+                return percent.toInt().coerceIn(0, 100)
+            }
+        }
+        return if (mv >= 4200u) 120 else 0
     }
 
-    private fun interfaceToHomeWithError() {
-        layoutWaitingEdge.visibility = View.INVISIBLE
-        layoutEegResult.visibility = View.INVISIBLE
 
-        buttonStartEEG.translationY = 0f
-        buttonBackHome.translationY = 0f
-        showEEGButton.value = true
-        showBackHomeButton.value = true
+    /// ACQUIRING EEG DATA ///
+    private fun acquireData() {
+        val segmentDurationMs = 2000L
+        var currentSegment = 1
+        val segmentHandler = Handler(Looper.getMainLooper())
+        val exporter = EEGDataProcessor(this)
+
+        if (isAcquiring.value != true) {
+            isAcquiring.value = true
+            textDataAcquiring.text = getString(R.string.inizio_acquisizione, totalSegments)
+
+            val segmentRunnable = object : Runnable{
+                override fun run(){
+                    val numEeg = currentSegment
+                    currentSegment++
+                    textDataAcquiring.text = getString(R.string.acquisizione, currentSegment, totalSegments)
+
+                    val currentData = ArrayList(acquiredData)
+                    acquiredData.clear()
+
+                    // Esportazione dati in un file CSV
+                    val rawfile = exporter.exportRawDataToCsv(currentData, numEeg, currentImageIndex)
+                    if(rawfile != null){
+                        val featuresFile = File(rawfile.parent, "features_image_${currentImageIndex}.csv")
+                        exporter.extractFeaturesToCsv(rawfile, featuresFile)
+                    }
+
+                    if(currentSegment <= totalSegments){
+                        segmentHandler.postDelayed(this, segmentDurationMs)
+                    } else {
+                        isAcquiring.value = false
+                        textDataAcquiring.text = getString(R.string.fine_acquisizione)
+
+                        // Salvo i dati in un file CSV
+                        val dir = this@MainActivity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                        if (dir == null) {
+                            Toast.makeText(this@MainActivity, "Unable to access the save folder.", Toast.LENGTH_LONG).show()
+                            return
+                        }
+                        featuresFile = File(dir, "features_image_${currentImageIndex}.csv")
+
+                        Log.i("FILE", "File path: ${featuresFile.absolutePath}")
+                        Log.i("FILE", "dir: ${dir.absolutePath}")
+                        Log.i("FILE", "currentImageIndex: $currentImageIndex")
+
+                        // Modifico l'interfaccia
+                        interfaceToModelChoice()
+                    }
+                }
+            }
+            segmentHandler.postDelayed(segmentRunnable, segmentDurationMs)
+        }
     }
 
-    private fun handleEdgeConnectionError(errMsg: String) {
-        interfaceToHomeWithError()
-        showEdgeConnectionErrorDialog(errMsg)
-    }
 
-    private fun handleInvalidPredictionError(prediction: Int?) {
-        interfaceToHomeWithError()
-        showInvalidPredictionErrorDialog(prediction)
-    }
-
+    /// WORK ON MODELS ///
     private fun initializeModel(fileName: File): List<Int> {
         val predictedClasses = mutableListOf<Int>()
 
@@ -636,39 +494,233 @@ class MainActivity : AppCompatActivity() {
         return predictedClass
     }
 
-    private fun estimateBatteryPercentage(mv: UInt): Int {
-        val table = listOf(
-            4200 to 100,
-            4100 to 90,
-            4000 to 80,
-            3900 to 75,
-            3800 to 70,
-            3700 to 65,
-            3600 to 50,
-            3500 to 45,
-            3400 to 40,
-            3300 to 30,
-            3200 to 10,
-            3000 to 0
-        )
 
-        for (i in 0 until table.size - 1) {
-            val (v1, p1) = table[i]
-            val (v2, p2) = table[i + 1]
-
-            if (mv >= v2.toUInt() && mv <= v1.toUInt()) {
-                // Interpolazione lineare tra i due punti
-                val fraction = (mv - v2.toUInt()).toDouble() / (v1 - v2)
-                val percent = p2 + fraction * (p1 - p2)
-                return percent.toInt().coerceIn(0, 100)
-            }
+    /// DISPLAYING EEG RESULT ///
+    private fun setEegResults(predictedClass: Int?) {
+        // Controllo che il risultato sia valido
+        if (predictedClass == null || predictedClass < 0 || predictedClass > 1) {
+            Log.e("PREDICTION", "Predicted class has an invalid value: $predictedClass.")
+            handleInvalidPredictionError(predictedClass)
         }
-        return if (mv >= 4200u) 120 else 0
+
+        // Setto il risultato numerico (classe predetta)
+        textEegRealResult.text = buildString { append("Predicted class: ").append(predictedClass) }
+
+        // Scelgo l'icona e il testo principale da visualizzare
+        if (predictedClass == 0) {
+            // Classe 0 ==> Opera non gradita
+            iconSadMango.visibility = View.VISIBLE
+            iconHappyMango.visibility = View.GONE
+            textEegResult.text = getString(R.string.painting_disliked)
+        } else {
+            // Classe 1 ==> Opera gradita
+            iconHappyMango.visibility = View.VISIBLE
+            iconSadMango.visibility = View.GONE
+            textEegResult.text = getString(R.string.painting_liked)
+        }
+
+        // Modifico l'interfaccia
+        interfaceToEegResults()
     }
 
 
-    ///////////////// DIALOGS /////////////////
-    /// Dialog per la connessione alla rete WiFi del casco ///
+    /// EDGE SERVER FUNCTIONS ///
+    private fun callEdgeServer(modelToUse: String, csvFile: File) {
+        sendFileToServer(modelToUse, csvFile)
+
+        // Modifico l'interfaccia
+        interfaceToWaitingScreen()
+    }
+
+    private fun sendFileToServer(
+        modelSelected : String,
+        file: File
+    ) {
+        if (!file.exists()) {
+            Log.e("FILE", "File not found: ${file.absolutePath}")
+        }
+
+        if (!file.isFile) {
+            Log.e("FILE", "Provided path is not a file: ${file.absolutePath}")
+        }
+
+        // Determine the MIME type (content type) of the file.
+        // For a CSV, it's typically "text/csv". You might want to
+        // use a utility function to determine MIME type based on file extension
+        // for more general file sending.
+        val mediaType = "text/csv".toMediaTypeOrNull()
+
+        // Create the request body from the file
+        val requestBody = file.asRequestBody(mediaType)
+
+        // Create the multipart request body (useful if your server expects a form-data upload)
+        val multipartBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("model", modelSelected)
+            .addFormDataPart(
+                "file", // The name of the form field on the server side (e.g., "file")
+                file.name, // Use the original file name
+                requestBody
+            )
+            .build()
+
+        // Create the HTTP POST request
+        val request = Request.Builder()
+            .url(serverUrl)
+            .post(multipartBody) // Use multipartBody for form-data upload
+            .build()
+
+        val client = OkHttpClient()
+
+        // Execute the request asynchronously
+        Log.d("DEBUG", "IP address used for this request: $serverIpAddress")
+        Log.d("DEBUG", "Server URL used for this request: $serverUrl")
+        client.newCall(request).enqueue(
+            object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    Log.e("EDGESERVER", "Network request failed: ${e.message}")
+
+                    // Sul thread principale (solo dal thread principale posso modificare la UI)
+                    runOnUiThread {
+                        handleEdgeConnectionError(e.message.toString())
+                    }
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    Log.i("EDGESERVER", "Network request successful")
+
+                    response.use {
+                        if (response.isSuccessful) {
+                            Log.i("EDGESERVER", "File uploaded successfully.")
+
+                            // Handle successful response
+                            val responseBody = response.body?.string()
+                            val gson = Gson()
+                            val bodyJson = gson.fromJson<Map<String, Any>>(responseBody, object : TypeToken<Map<String, Any>>() {}.type)
+
+                            // Tentativo di cast a Double (safe cast: se non riesce, ret sarà null)
+                            // Questo passaggio serve perché il valore viene preso dal body automaticamente come java.lang.Double.
+                            val ret = bodyJson["result"] as? Double
+
+                            // Converto a Int se il cast a Double è riuscito (altrimenti retInt sarà null)
+                            val retInt: Int? = ret?.toInt()
+
+                            Log.i("EDGESERVER", "Server response: $retInt")
+
+                            runOnUiThread { setEegResults(retInt) }
+                        } else {
+                            // Handle unsuccessful response
+                            val errorBody = response.body?.string()
+
+                            Log.i("EDGESERVER", "File upload failed. Server code: ${response.code}, Error: $errorBody")
+
+                            runOnUiThread { handleEdgeConnectionError("File upload failed. Server code: ${response.code}, Error: $errorBody") }
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+
+    /// INTERFACE CHANGES ///
+    private fun interfaceToHome() {
+        // Sposto verso l'alto i bottoni "Start EEG" e "Home"
+        buttonStartEEG.animate().translationY(0f).setDuration(1000).start()
+        buttonBackHome.animate().translationY(0f).setDuration(1000).start()
+
+        // Nascondo alcuni elementi
+        buttonBackHome.visibility = View.INVISIBLE
+        layoutDataAcquiring.visibility = View.INVISIBLE
+        layoutBatteryStatus.visibility = View.INVISIBLE
+        layoutWaitingEdge.visibility = View.INVISIBLE
+        layoutEegResult.visibility = View.INVISIBLE
+
+        // Visualizzo altri elementi
+        logoImageView.visibility = View.VISIBLE
+    }
+
+    private fun interfaceToHomeWithError() {
+        // Sposto verso l'alto i bottoni "Start EEG" e "Home"
+        buttonStartEEG.translationY = 0f
+        buttonBackHome.translationY = 0f
+
+        // Nascondo alcuni elementi
+        layoutWaitingEdge.visibility = View.INVISIBLE
+        layoutEegResult.visibility = View.INVISIBLE
+
+        // Visualizzo altri elementi
+        showEEGButton.value = true
+        showBackHomeButton.value = true
+    }
+
+    private fun interfaceToPaintingShow() {
+        // Sposto verso il basso i bottoni "Start EEG" e "Home" (se "Start EEG" è al centro della schermata)
+        if (buttonStartEEG.translationY == 0f) {
+            buttonStartEEG.translationY = 325f
+            buttonBackHome.translationY = 325f
+        }
+
+        // Nascondo alcuni elementi
+        showEEGButton.value = false
+        showBackHomeButton.value = false
+        logoImageView.visibility = View.INVISIBLE
+        layoutNetworkStatus.visibility = View.INVISIBLE
+        layoutEegResult.visibility = View.INVISIBLE
+
+        // Visualizzo altri elementi
+        layoutBatteryStatus.visibility = View.VISIBLE
+        layoutDataAcquiring.visibility = View.VISIBLE
+        layoutBatteryStatus.visibility = View.VISIBLE
+        galleryImageView.visibility = View.VISIBLE
+    }
+
+    private fun interfaceToModelChoice() {
+        // Nascondo alcuni elementi
+        galleryImageView.visibility = View.INVISIBLE
+
+        // Visualizzo altri elementi
+        showModelButtons.value = true
+    }
+
+    private fun interfaceToWaitingScreen() {
+        // Nascondo alcuni elementi
+        showModelButtons.value = false
+
+        // Visualizzo altri elementi
+        layoutWaitingEdge.visibility = View.VISIBLE
+    }
+
+    private fun interfaceToEegResults() {
+        // Sposto verso il basso i bottoni "Start EEG" e "Home"
+        buttonStartEEG.translationY = 325f
+        buttonBackHome.translationY = 325f
+
+        // Nascondo alcuni elementi
+        showModelButtons.value = false
+        layoutWaitingEdge.visibility = View.INVISIBLE
+
+        // Visualizzo altri elementi
+        showEEGButton.value = true
+        showBackHomeButton.value = true
+        layoutEegResult.visibility = View.VISIBLE
+    }
+
+
+    /// ERROR HANDLERS ///
+    private fun handleEdgeConnectionError(errMsg: String) {
+        interfaceToHomeWithError()
+        showEdgeConnectionErrorDialog(errMsg)
+    }
+
+    private fun handleInvalidPredictionError(prediction: Int?) {
+        interfaceToHomeWithError()
+        showInvalidPredictionErrorDialog(prediction)
+    }
+
+
+    /// DIALOGS ///
+    // Dialog per la connessione alla rete WiFi del casco
     private fun showWiFiConnectionDialog() {
         val builder = AlertDialog.Builder(this)
 
@@ -691,12 +743,57 @@ class MainActivity : AppCompatActivity() {
         alertDialog.show()
     }
 
-    /// Dialog per l'eventuale errore di connessione all'edge server ///
+    /// Dialog per richiedere l'indirizzo IP del server edge ///
+    private fun showIpRequestDialog(modelToUse: String, csvFile: File) {
+        val builder = AlertDialog.Builder(this)
+
+        builder.setTitle("Set IP Address")
+        builder.setMessage("Set in the input below the IP address of the PC where the edge serve is currently running.\nYou can read the IP address on MindRove WiFi properties on the PC.\n")
+
+        // Aggiungi un campo di input
+        val input = EditText(this)
+        input.hint = "IP Address"
+        input.inputType = android.text.InputType.TYPE_CLASS_PHONE
+        builder.setView(input)
+
+        // Pulsante POSITIVO
+        builder.setPositiveButton("Ok") { dialog, which ->
+            serverIpAddress = input.text.toString()
+            serverUrl = "http://$serverIpAddress:8080/upload"
+            callEdgeServer(modelToUse, csvFile)
+
+            dialog.dismiss()
+        }
+
+        // Pulsante NEGATIVO
+        builder.setNegativeButton("Cancel") { dialog, whihch ->
+            dialog.dismiss()
+        }
+
+        // Se non è il primo test che stiamo facendo, mostro i dati riguardo all'ultimo indirizzo IP utilizzato e permetto di riutilizzarlo
+        if (serverUrl != "") {
+            // Aggiungo una stringa al testo già settato
+            builder.setMessage("Set in the input below the IP address of the PC where the edge serve is currently running.\nYou can read the IP address on MindRove WiFi properties on the PC.\n\nLast IP address used: \"$serverIpAddress\".\n")
+
+            // Pulsante NEUTRO
+            builder.setNeutralButton("Use last IP") { dialog, which ->
+                callEdgeServer(modelToUse, csvFile)
+
+                dialog.dismiss()
+            }
+        }
+
+        // Creo l'alert e lo mostro a schermo
+        val alertDialog: AlertDialog = builder.create()
+        alertDialog.show()
+    }
+
+    // Dialog per l'eventuale errore di connessione all'edge server
     private fun showEdgeConnectionErrorDialog(errMsg: String) {
         val builder = AlertDialog.Builder(this)
 
         builder.setTitle("Connection Error")
-        builder.setMessage("There was an error connecting to the edge server.\n$errMsg")
+        builder.setMessage("There was an error connecting to the edge server.\n\n$errMsg")
 
         // Pulsante POSITIVO
         builder.setPositiveButton("Ok") { dialog, which ->
@@ -708,7 +805,7 @@ class MainActivity : AppCompatActivity() {
         alertDialog.show()
     }
 
-    /// Dialog per gestire un valore non valido della classe predetta ///
+    // Dialog per gestire un valore non valido della classe predetta
     private fun showInvalidPredictionErrorDialog(prediction: Int?) {
         val builder = AlertDialog.Builder(this)
 

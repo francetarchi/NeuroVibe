@@ -2,20 +2,21 @@
 
 <resources>
     <!--  COLORI BASE  -->
-    <color name="neurovibe.purple.variant.darker">#FF3700B3</color>
-    <color name="neurovibe.purple">#FF6200EE</color>
-    <color name="neurovibe.purple.variant.lighter">#FFBB86FC</color>
-    <color name="neurovibe.purple.variant.lighter.lighter">#FFD9C3FF</color>
+    <color name="neurovibe.purple.variant.darker">#3700B3</color>
+    <color name="neurovibe.purple">#6200EE</color>
+    <color name="neurovibe.purple.darkMode">#8C6DB9</color>
+    <color name="neurovibe.purple.variant.lighter">#BB86FC</color>
+    <color name="neurovibe.purple.variant.lighter.lighter">#D9C3FF</color>
 
-    <color name="neurovibe.teal">#FF018786</color>
-    <color name="neurovibe.teal.variant.lighter">#FF03DAC5</color>
+    <color name="neurovibe.orange">#FF7F0E</color>
+    <color name="neurovibe.orange.variant.lighter">#E29F65</color>
 
-    <color name="neurovibe.gray.variant.darker">#FF747474</color>
-    <color name="neurovibe.gray">#FF9B9B9B</color>
-    <color name="neurovibe.gray.variant.lighter">#FFE2E2E2</color>
+    <color name="neurovibe.gray.variant.darker">#747474</color>
+    <color name="neurovibe.gray">#9B9B9B</color>
+    <color name="neurovibe.gray.variant.lighter">#E2E2E2</color>
 
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
 
     <!--  COLORI PER ELEMENTO  -->
     <!--  Dialogs  -->
@@ -23,5 +24,5 @@
     <color name="dialog.title.text.color">@color/black</color>
     <color name="dialog.message.text.color">@color/neurovibe.gray.variant.darker</color>
     <color name="dialog.positive.button.text.color">@color/neurovibe.purple</color>
-    <color name="dialog.negative.button.text.color">@color/neurovibe.teal</color>
+    <color name="dialog.negative.button.text.color">@color/neurovibe.orange</color>
 </resources>
