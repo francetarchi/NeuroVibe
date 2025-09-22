@@ -1,50 +1,53 @@
 # NeuroVibe
-Project for Mobile and Social Sensing System course.
+Project for the course of Mobile and Social Sensing Systems of the Master Degree in Artificial Intelligence and Data Engineering, University of Pisa.
 
-L'applicazione permette di ricevere dati da un casco per EEG, raccolti mentre l'utente (dall'applicazione stessa) guarda opere d'arte.
-L'applicazione fornisce successivamente i dati raccolti in input ad un modello TensorFlow Lite che predice se l'utente ha gradito o meno il dipinto.
-I modelli inclusi nell'app sono due:
-- uno "SMALL" da 100 neuroni
-- uno "BIG" da 1000 neuroni
-Inoltre, ognuno dei due modelli è eseguibile in locale o in remoto con un approccio edge server.
+The application allows receiving data from an EEG headset, collected while the user (through the application itself) looks at works of art.
+The application then provides the collected data as input to a TensorFlow Lite model that predicts whether the user liked the painting or not.
+
+The models included in the app are two:
+- one "SMALL" with 100 neurons;
+- one "BIG" with 1000 neurons.
+
+In addition, each of the two models can be executed locally or remotely with an edge server approach.
 
 
 
 ## Mobile app
-Nella directory "./NeuroVibe" si trova tutto il necessario per l'applicazione Android.
-Per eseguirla:
-- aprire Android Studio alla cartella root "NeuroVibe"
-- connettere il telefono Android
-- fare un "Run" per installare l'applicazione sul telefono
-- disconnettere il telefono dal computer se si vuole verificare i consumi dell'applicazione senza che il telefono venga caricato
-- eseguire l'applicazione sul telefono.
+In the directory "./NeuroVibe" you can find everything needed for the Android application.
+To run it:
+- open Android Studio at the root folder "NeuroVibe";
+- connect the Android phone;
+- click "Run" to install the application on the phone;
+- disconnect the phone from the computer if you want to check the application’s power consumption without charging the phone;
+- run the application on the phone.
 
-### Connessione al MindRove
-L'applicazione funziona con il MindRove Arc.
-Il casco, all'accensione, genera la rete Wi-Fi "MindRove_ARC_ae01ec", con un server DHCP integrato che assegna gli indirizzi IP automaticamente in ordine di connessione:
-- il casco stesso è raggiungibile all'indirizzo "192.168.4.1"
-- il primo dispositivo che si connette è raggiungibile all'indirizzo "192.168.4.2"
-- il secondo dispositivo che si connette è raggiungibile all'indirizzo "192.168.4.3"
+### Connection to MindRove
+The application works with the MindRove Arc.
+When powered on, the headset generates the Wi-Fi network "MindRove_ARC_ae01ec", with an integrated DHCP server that automatically assigns IP addresses in connection order:
+- the headset itself is reachable at the address "192.168.4.1"
+- the first device that connects is reachable at the address "192.168.4.2"
+- the second device that connects is reachable at the address "192.168.4.3"
 
-Il casco invia dati solamente al dispositivo connesso da più tempo.
-Per evitare errori (mancata ricezione di dati dal dispositivo ), è CONSIGLIATO:
-- accendere il MindRove
-- connettere per primo alla rete WiFi del MindRove il telefono Android con cui vogliamo eseguire la raccolta dei dati EEG.
-- connettere per secondo alla rete WiFi del MindRove il computer su cui verrà eseguito il server edge per l'esecuzione dei modelli da remoto.
+The headset only sends data to the device that has been connected the longest.
+To avoid errors (failure to receive data on the device), it is RECOMMENDED to:
+- power on the MindRove;
+- connect first to the MindRove WiFi network with the Android phone that will be used for EEG data collection;
+- connect second to the MindRove WiFi network with the computer where the edge server will run for remote model execution.
 
-In ogni caso, l'applicazione Android, quando deve inviare dati all'edge server, richiede l'indirzzo IP a cui inviarli: controllare l'indirizzo IP dell'edge server dalle proprietà della rete WiFi a cui si è connessi.
+In any case, the Android application, when it needs to send data to the edge server, requests the IP address to which it should send them: check the IP address of the edge server from the WiFi network properties.
 
 #### PASSWORD ####
-La password per connettersi al MindRove è "#mindrove".
+The password to connect to the MindRove is "#mindrove".
 
-#### ATTENZIONE ####
-Dopo diversi test, è possibile che il MindRove invii sempre gli stessi dati non invii più nulla. Per risolvere, semplicemente spegnere e riacccendere il MindRove.
+#### WARNING ####
+After several tests, it may happen that the MindRove always sends the same data or no longer sends anything. To solve this, simply power off and on the MindRove.
 
 
 
 ## Edge server
-L'edge server è un file Python (al path "./edge/edge.py") che esegue un server Flask incaricato di attendere costantemente richieste HTTP da qualsiasi indirizzo IP: alla ricezione di una richiesta HTTP, elabora i dati ricevuti in un file.csv utilizzando il modello indicato nella stessa e successivamente invia la classe predetta all'indirizzo IP da cui ha ricevuto la richiesta.
-I dati in input arrivano divisi in chunk (l'applicazione registra dati EEG per 10 secondi, suddividendoli in 5 chunk da 2 secondi l'uno).
-La classe predetta è la moda delle predizioni sui singoli chunk.
+The edge server is a Python file (at path "./edge/edge.py") that runs a Flask server constantly waiting for HTTP requests from any IP address: upon receiving an HTTP request, it processes the received data in a .csv file using the model specified in the request and then sends the predicted class to the IP address from which the request was received.
 
-Ulteriori informazioni riguardo il funzionamento dell'edge server si trovano al path "./edge/README.md", in quanto il server è utilizzabile copiando il contenuto della sola directory "./edge".
+The input data arrives divided into chunks (the application records EEG data for 10 seconds, splitting them into 5 chunks of 2 seconds each).
+The predicted class is the mode of the predictions on the individual chunks.
+
+Further information regarding the operation of the edge server can be found at path "./edge/README.md", since the server can be used by copying only the contents of the "./edge" directory.
