@@ -1,6 +1,8 @@
 # NeuroVibe
 Project for the course of Mobile and Social Sensing Systems of the Master Degree in Artificial Intelligence and Data Engineering, University of Pisa.
 
+![logo NeuroVibe](NeuroVibe/NeuroVibe/app/src/main/res/drawable-night/logo_neurovibe.png)
+
 The application allows receiving data from an EEG headset, collected while the user (through the application itself) looks at works of art.
 The application then provides the collected data as input to a TensorFlow Lite model that predicts whether the user liked the painting or not.
 
